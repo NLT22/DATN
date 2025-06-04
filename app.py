@@ -8,6 +8,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime
 import calendar
+import math
 import os
 import cv2
 from face_recognize import FaceRecognizerONNX
@@ -15,6 +16,10 @@ from face_detector import FaceDetector
 from werkzeug.utils import secure_filename
 from door_control import get_door_status
 from door_control import get_door_event_queue
+
+from werkzeug.datastructures import MultiDict
+
+
 
 app = Flask(__name__)
 camera = Camera(detector='yunet')
@@ -32,11 +37,16 @@ def index():
 
 @app.route('/traffic_monitor')
 def traffic_monitor():
+    # Lấy các tham số lọc và phân trang
     name_filter = request.args.get('name', '').strip()
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
-    group_by = request.args.get('group_by', 'day')  # default: group by day
+    role_filter = request.args.get('role', '').strip()
+    group_by = request.args.get('group_by', 'day')
+    page = int(request.args.get('page', 1))
+    per_page = 50
 
+    # Câu truy vấn chính
     query = """
         SELECT u.name, u.role, a.access_time, a.result
         FROM access_logs a
@@ -57,13 +67,20 @@ def traffic_monitor():
         query += " AND DATE(a.access_time) <= ?"
         params.append(end_date)
 
+    if role_filter:
+        query += " AND u.role = ?"
+        params.append(role_filter)
+
     query += " ORDER BY a.access_time DESC"
 
+    # Kết nối DB và thực hiện truy vấn
     conn = sqlite3.connect("database/face_lock.db")
     c = conn.cursor()
     c.execute(query, params)
     rows = c.fetchall()
+    conn.close()
 
+    # Tính thống kê biểu đồ và phân trang
     logs = []
     date_counter = defaultdict(int)
 
@@ -79,32 +96,39 @@ def traffic_monitor():
         dt = datetime.strptime(access_time, "%Y-%m-%d %H:%M:%S")
 
         if group_by == "week":
-            # Format: "Tuần xx"
-            week_label = f"Tuần {dt.isocalendar()[1]:02d}"
-            date_counter[week_label] += 1
+            label = f"Tuần {dt.isocalendar()[1]:02d}"
         elif group_by == "month":
-            # Format: "Tháng MM"
-            month_label = f"Tháng {dt.strftime('%m')}"
-            date_counter[month_label] += 1
-        else:  # group_by == "day"
-            # Format: "DD/MM"
-            day_label = dt.strftime("%d/%m")
-            date_counter[day_label] += 1
+            label = f"Tháng {dt.strftime('%m')}"
+        else:
+            label = dt.strftime("%d/%m")
 
+        date_counter[label] += 1
 
-    # Sắp xếp theo thời gian tăng dần
     chart_labels = sorted(date_counter.keys())
     chart_counts = [date_counter[label] for label in chart_labels]
 
-    conn.close()
+    # Phân trang thủ công
+    total_records = len(logs)
+    total_pages = math.ceil(total_records / per_page) if per_page else 1
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_logs = logs[start:end]
+    has_next = page < total_pages
+
+    args = request.args.to_dict(flat=True)
+    args.pop('page', None)  # Xoá page
 
     return render_template(
         "traffic.html",
-        logs=logs,
+        logs=paginated_logs,
         chart_labels=chart_labels,
-        chart_counts=chart_counts
+        chart_counts=chart_counts,
+        page=page,
+        per_page=per_page,
+        has_next=has_next,
+        total_pages=total_pages,
+        args=args  # truyền dict đã loại bỏ page
     )
-
 
 @app.route('/recognized_identity_image/<int:user_id>')
 def recognized_identity_image(user_id):

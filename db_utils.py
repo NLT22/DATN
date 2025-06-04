@@ -76,4 +76,4 @@ def generate_dummy_logs(db_path="database/face_lock.db", num_logs=50):
     print(f"✅ Đã thêm {num_logs} dòng dữ liệu ngẫu nhiên vào bảng access_logs.")
 
 # Gọi hàm
-generate_dummy_logs()
+# generate_dummy_logs()

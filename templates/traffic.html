@@ -8,47 +8,58 @@
 </head>
 <body class="bg-light">
   <div class="container mt-5">
-    <h2 class="mb-4 text-center">📋 Door Access Log</h2>
-
+    <h2 class="mb-4 text-center">📋 Nhật ký truy cập</h2>
     <!-- Filter Form -->
     <form method="GET" action="{{ url_for('traffic_monitor') }}" class="card p-3 shadow-sm mb-4">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-            <label class="form-label">Tên thành viên</label>
-            <input type="text" name="name" class="form-control" placeholder="e.g. Trung" value="{{ request.args.get('name', '') }}">
-            </div>
-            <div class="col-md-2">
-            <label class="form-label">Từ ngày</label>
-            <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
-            </div>
-            <div class="col-md-2">
-            <label class="form-label">Đến ngày</label>
-            <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
-            </div>
-            <div class="col-md-5">
-            <label class="form-label d-block">Lọc theo</label>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="group_by" value="day" id="filterDay" {% if request.args.get('group_by', 'day') == 'day' %}checked{% endif %}>
-                <label class="form-check-label" for="filterDay">Ngày</label>
-            </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="group_by" value="week" id="filterWeek" {% if request.args.get('group_by') == 'week' %}checked{% endif %}>
-                <label class="form-check-label" for="filterWeek">Tuần</label>
-            </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="group_by" value="month" id="filterMonth" {% if request.args.get('group_by') == 'month' %}checked{% endif %}>
-                <label class="form-check-label" for="filterMonth">Tháng</label>
-            </div>
-            </div>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">Tên thành viên</label>
+          <input type="text" name="name" class="form-control" placeholder="e.g. Trung" value="{{ request.args.get('name', '') }}">
         </div>
 
-        <!-- Submit button in a separate row, full width -->
-        <div class="row mt-3">
+        <div class="col-md-2">
+          <label class="form-label">Từ ngày</label>
+          <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label">Đến ngày</label>
+          <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label">Vai trò</label>
+          <select name="role" class="form-select">
+            <option value="">Tất cả</option>
+            <option value="admin" {% if request.args.get('role') == 'admin' %}selected{% endif %}>Quản trị viên</option>
+            <option value="user" {% if request.args.get('role') == 'user' %}selected{% endif %}>Thành viên</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label d-block">Lọc theo</label>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="group_by" value="day" id="filterDay" {% if request.args.get('group_by', 'day') == 'day' %}checked{% endif %}>
+            <label class="form-check-label" for="filterDay">Ngày</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="group_by" value="week" id="filterWeek" {% if request.args.get('group_by') == 'week' %}checked{% endif %}>
+            <label class="form-check-label" for="filterWeek">Tuần</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="group_by" value="month" id="filterMonth" {% if request.args.get('group_by') == 'month' %}checked{% endif %}>
+            <label class="form-check-label" for="filterMonth">Tháng</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mt-3">
         <div class="col-12">
-            <button type="submit" class="btn btn-primary w-100">🔍 Lọc</button>
+          <button type="submit" class="btn btn-primary w-100">🔍 Lọc</button>
         </div>
-        </div>
+      </div>
     </form>
+
 
     
     <!-- Chart Section -->
@@ -74,7 +85,7 @@
             <tbody>
               {% for log in logs %}
               <tr>
-                <td>{{ loop.index }}</td>
+                <td>{{ loop.index + (page - 1) * per_page }}</td>
                 <td>{{ log.name }}</td>
                 <td>{{ log.role }}</td>
                 <td>{{ log.access_time }}</td>
@@ -90,6 +101,52 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Controls -->
+        <nav class="mt-3">
+          <ul class="pagination justify-content-center">
+            {% if page > 1 %}
+              <li class="page-item">
+                <a class="page-link" href="{{ url_for('traffic_monitor', page=page-1, **args) }}">⬅️ Trước</a>
+              </li>
+            {% endif %}
+
+            {# Hiển thị phân trang rút gọn xung quanh trang hiện tại #}
+            {% set display_range = 2 %}
+
+            {# Nút về trang đầu nếu cần #}
+            {% if page > display_range + 1 %}
+              <li class="page-item">
+                <a class="page-link" href="{{ url_for('traffic_monitor', page=1, **args) }}">1</a>
+              </li>
+              <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+
+            {# Các trang gần trang hiện tại #}
+            {% for p in range(page - display_range, page + display_range + 1) %}
+              {% if 1 <= p <= total_pages %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                  <a class="page-link" href="{{ url_for('traffic_monitor', page=p, **args) }}">{{ p }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {# Nút đến trang cuối nếu cần #}
+            {% if page < total_pages - display_range %}
+              <li class="page-item disabled"><span class="page-link">...</span></li>
+              <li class="page-item">
+                <a class="page-link" href="{{ url_for('traffic_monitor', page=total_pages, **args) }}">{{ total_pages }}</a>
+              </li>
+            {% endif %}
+
+
+            {% if has_next %}
+              <li class="page-item">
+                <a class="page-link" href="{{ url_for('traffic_monitor', page=page+1, **args) }}">Tiếp ➡️</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
       {% else %}
         <p class="text-muted text-center">Không có bản ghi truy cập nào phù hợp với bộ lọc.</p>
       {% endif %}
@@ -98,6 +155,7 @@
         <a href="{{ url_for('index') }}" class="btn btn-primary">◀️ Quay lại trang chủ</a>
       </div>
     </div>
+
 
 
   </div>

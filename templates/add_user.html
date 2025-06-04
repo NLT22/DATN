@@ -7,28 +7,28 @@
 </head>
 <body class="bg-light">
   <div class="container mt-5">
-    <h2 class="mb-4 text-center">🔐 Add New User</h2>
+    <h2 class="mb-4 text-center">🔐 Thêm người dùng mới</h2>
     <form action="/add_user" method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm">
       <div class="mb-3">
-        <label for="name" class="form-label">Full Name</label>
-        <input type="text" name="name" class="form-control" required placeholder="e.g. Nguyen Le Trung">
+        <label for="name" class="form-label">Tên đầy đủ</label>
+        <input type="text" name="name" class="form-control" required placeholder="e.g. Nguyễn Lê Trung">
       </div>
 
       <div class="mb-3">
-        <label for="role" class="form-label">Role</label>
+        <label for="role" class="form-label">Vai trò</label>
         <select name="role" class="form-select" required>
-          <option value="user" selected>User</option>
-          <option value="admin">Admin</option>
+          <option value="user" selected>Thành viên</option>
+          <option value="admin">Quản trị viên</option>
         </select>
       </div>
 
       <div class="mb-3">
-        <label for="face_images" class="form-label">Face Images (you can select multiple)</label>
+        <label for="face_images" class="form-label">Ảnh khuôn mặt (Có thể tải lên nhiều ảnh)</label>
         <input type="file" name="face_images" class="form-control" accept="image/*" multiple required>
-        <div class="form-text">Upload multiple clear face images of the user.</div>
+        <div class="form-text">Vui lòng tải ảnh khuôn mặt rõ ràng</div>
       </div>
 
-      <button type="submit" class="btn btn-primary w-100">➕ Add User</button>
+      <button type="submit" class="btn btn-primary w-100">⬆️ Thêm người dùng mới</button>
     </form>
   </div>
 </body>
