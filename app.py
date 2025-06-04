@@ -29,7 +29,44 @@ def index():
 
 @app.route('/traffic_monitor')
 def traffic_monitor():
-    return render_template('traffic.html')
+    name_filter = request.args.get('name', '').strip()
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+
+    query = """
+        SELECT u.name, u.role, a.access_time, a.result
+        FROM access_logs a
+        JOIN users u ON a.user_id = u.id
+        WHERE 1=1
+    """
+    params = []
+
+    # Tìm theo tên
+    if name_filter:
+        query += " AND u.name LIKE ?"
+        params.append(f"%{name_filter}%")
+
+    # Tìm theo thời gian
+    if start_date:
+        query += " AND DATE(a.access_time) >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND DATE(a.access_time) <= ?"
+        params.append(end_date)
+
+    # Thứ tự mới nhất lên đầu
+    query += " ORDER BY a.access_time DESC LIMIT 100"
+
+    conn = sqlite3.connect("database/face_lock.db")
+    c = conn.cursor()
+    c.execute(query, params)
+    logs = [
+        {"name": row[0], "role": row[1], "access_time": row[2], "result": row[3]}
+        for row in c.fetchall()
+    ]
+    conn.close()
+
+    return render_template("traffic.html", logs=logs)
 
 @app.route('/recognized_identity_image/<int:user_id>')
 def recognized_identity_image(user_id):

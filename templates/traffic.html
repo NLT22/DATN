@@ -1,83 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Access Log</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #f8f8f8;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .table-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background-color: #fff;
-            padding: 30px;
-            border: 2px solid #000;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-
-        table {
-            margin-top: 20px;
-        }
-
-        th {
-            background-color: #000;
-            color: white;
-        }
-
-        .btn-back {
-            margin-top: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Access Log</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>📋 Access Log</h1>
-    <div class="table-container">
-        {% if logs %}
-            <table class="table table-bordered table-hover">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Name</th>
-                        <th>Role</th>
-                        <th>Time</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in logs %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ log.name }}</td>
-                        <td>{{ log.role }}</td>
-                        <td>{{ log.time }}</td>
-                        <td>
-                            {% if log.status == 'Granted' %}
-                                <span class="text-success fw-bold">Granted</span>
-                            {% else %}
-                                <span class="text-danger fw-bold">Denied</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p class="text-center">No access logs available.</p>
-        {% endif %}
-        <div class="text-center btn-back">
-            <a href="{{ url_for('index') }}" class="btn btn-secondary">⬅️ Back to Home</a>
-        </div>
+<body class="bg-light">
+  <div class="container mt-5">
+    <h2 class="mb-4 text-center">📋 Door Access Log</h2>
+    <!-- Chart -->
+    <div class="card shadow-sm p-4 mb-4">
+        <h5 class="mb-3 text-center">📊 Thống kê lượt truy cập theo ngày</h5>
+        <canvas id="accessChart" height="100"></canvas>
     </div>
+
+    <!-- Filter Form -->
+    <form method="GET" action="{{ url_for('traffic_monitor') }}" class="card p-3 shadow-sm mb-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Tên thành viên</label>
+          <input type="text" name="name" class="form-control" placeholder="e.g. Trung" value="{{ request.args.get('name', '') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Từ ngày</label>
+          <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Đến ngày</label>
+          <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-primary">🔍 Lọc</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="card shadow-sm p-4">
+      {% if logs %}
+        <div class="table-responsive">
+          <table class="table table-bordered table-striped table-hover">
+            <thead class="table-primary">
+              <tr>
+                <th>#</th>
+                <th>Tên thành viên</th>
+                <th>Vai trò</th>
+                <th>Thời gian</th>
+                <th>Kết quả</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in logs %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ log.name }}</td>
+                <td>{{ log.role }}</td>
+                <td>{{ log.access_time }}</td>
+                <td>
+                  {% if log.result == 'success' %}
+                    <span class="badge bg-success">Thành công</span>
+                  {% else %}
+                    <span class="badge bg-danger">Từ chối</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted text-center">No access log matches your filters.</p>
+      {% endif %}
+
+      <div class="text-end mt-3">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">🔙 Quay lại trang chủ</a>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
