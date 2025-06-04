@@ -23,16 +23,14 @@ recognizer = FaceRecognizerONNX()
 
 @app.route('/')
 def index():
-    # Giả sử bạn đã có embedding tại đây, ví dụ lấy từ camera hoặc từ request
-    # embedding = get_embedding_somehow()
-    # user_id, result, image_path = recognize_and_log(embedding)
-
-    # Demo tạm: không gọi nhận diện thật sự
-    user_id = 3  # ví dụ người dùng đầu tiên
+    user_id = camera.last_recognized_id or 0
     image_url = f'/recognized_identity_image/{user_id}'
-    
-    return render_template('index.html', door_status=door_status, recognized_image=image_url)
+    return render_template('index.html', door_status=get_door_status(), recognized_image=image_url)
 
+@app.route('/current_user_id')
+def current_user_id():
+    user_id = camera.last_recognized_id or 0
+    return {'user_id': user_id}
 
 @app.route('/traffic_monitor')
 def traffic_monitor():
@@ -40,12 +38,16 @@ def traffic_monitor():
 
 @app.route('/recognized_identity_image/<int:user_id>')
 def recognized_identity_image(user_id):
+    if user_id == 0:
+        return send_from_directory(USER_IMAGE_DIR, 'Unknown.png')
+
     user_folder = os.path.join(USER_IMAGE_DIR, f'user_{user_id}')
     if os.path.exists(user_folder):
         images = sorted([f for f in os.listdir(user_folder) if f.endswith(('.jpg', '.jpeg', '.png'))])
         if images:
             return send_from_directory(user_folder, images[0])
-    return "No image found", 404
+    return send_from_directory(USER_IMAGE_DIR, 'Unknown.png')
+
 
 @app.route('/identity_image')
 def identity_image():
@@ -139,36 +141,6 @@ def register_user(name, role, embedding, image_paths):
     face_utils.save_id_mapping(id_map)
 
     print(f"✅ Registered {name} with user_id={user_id}, images={len(image_paths)}")
-
-def recognize_and_log(embedding):
-    index = face_utils.load_index()
-    id_map = face_utils.load_id_mapping()
-    embedding = np.array([embedding]).astype('float32')
-
-    D, I = index.search(embedding, 1)
-    if D[0][0] < 1.0:
-        user_id = id_map[I[0][0]]
-        result = "success"
-
-        # Lấy ảnh đầu tiên trong thư mục user_images/user_{user_id}
-        user_folder = os.path.join(USER_IMAGE_DIR, f'user_{user_id}')
-        first_image = None
-        if os.path.exists(user_folder):
-            images = sorted([f for f in os.listdir(user_folder) if f.endswith(('.jpg', '.jpeg', '.png'))])
-            if images:
-                first_image = os.path.join(user_folder, images[0])
-    else:
-        user_id = None
-        result = "failed"
-        first_image = './user_images/Unknown.png'
-
-    conn = sqlite3.connect("database/face_lock.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO access_logs (user_id, result) VALUES (?, ?)", (user_id, result))
-    conn.commit()
-    conn.close()
-
-    return user_id, result, first_image
 
 
 if __name__ == '__main__':

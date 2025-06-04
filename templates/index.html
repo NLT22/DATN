@@ -72,6 +72,51 @@
         }
     </style>
 </head>
+
+<script>
+    // Cập nhật trạng thái cửa
+    function fetchDoorStatus() {
+        fetch('/door_status')
+            .then(response => response.text())
+            .then(status => {
+                const statusDiv = document.getElementById('doorStatus');
+                if (status.trim() === "OPEN") {
+                    statusDiv.textContent = "Door: OPEN";
+                    statusDiv.classList.add("status-open");
+                    statusDiv.classList.remove("status-closed");
+                } else {
+                    statusDiv.textContent = "Door: CLOSED";
+                    statusDiv.classList.add("status-closed");
+                    statusDiv.classList.remove("status-open");
+                }
+            })
+            .catch(error => {
+                console.error("Error fetching door status:", error);
+                document.getElementById('doorStatus').textContent = "Error";
+            });
+    }
+
+    setInterval(fetchDoorStatus, 200); // cập nhật trạng thái cửa mỗi 200ms
+    fetchDoorStatus();
+
+    // ✅ Cập nhật ảnh khuôn mặt được nhận diện
+    function updateRecognizedImage() {
+        fetch('/current_user_id')
+            .then(response => response.json())
+            .then(data => {
+                const userId = data.user_id;
+                const img = document.getElementById("recognized-image");
+                img.src = `/recognized_identity_image/${userId}?t=${Date.now()}`; // tránh cache ảnh cũ
+            })
+            .catch(error => {
+                console.error("Error updating recognized image:", error);
+            });
+    }
+
+    setInterval(updateRecognizedImage, 2000);  // cập nhật ảnh mỗi 2 giây
+    updateRecognizedImage();
+</script>
+
 <body>
     <h1>🔐 Smart Door Lock System</h1>
     <div class="main-container">
@@ -86,11 +131,8 @@
         <div class="right-section d-flex flex-column gap-4">
             <!-- Identity -->
             <h3>Recognized Identity</h3>
-            {% if recognized_image %}
-                <img src="{{ recognized_image }}" alt="Recognized Face" style="max-width:200px; border: 2px solid green;">
-            {% else %}
-                <p>No recognized image.</p>
-            {% endif %}
+            <img id="recognized-image" src="/recognized_identity_image/0" alt="Recognized Face" style="max-width:200px; border: 2px solid green;">
+
 
 
             <!-- Status panel -->
