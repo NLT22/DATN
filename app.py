@@ -17,12 +17,11 @@ from werkzeug.utils import secure_filename
 from door_control import get_door_status
 from door_control import get_door_event_queue
 
-from werkzeug.datastructures import MultiDict
-
+# from werkzeug.datastructures import MultiDict
 
 
 app = Flask(__name__)
-camera = Camera(detector='yunet')
+camera = Camera(detector='haar')
 
 UPLOAD_FOLDER = 'uploads'
 USER_IMAGE_DIR = 'user_images'
@@ -173,6 +172,7 @@ def sse_updates():
             time.sleep(0.2)  # prevent CPU overuse
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
+
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
     if request.method == 'POST':

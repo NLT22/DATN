@@ -5,6 +5,7 @@ import pickle
 import os
 import sqlite3
 import cv2
+from datetime import datetime
 
 FAISS_INDEX_PATH = "faiss_index/index.bin"
 ID_MAPPING_PATH = "embeddings/id_to_user.pkl"
@@ -64,16 +65,17 @@ def recognize_and_log(embedding):
             images = sorted([f for f in os.listdir(user_folder) if f.endswith(('.jpg', '.jpeg', '.png'))])
             if images:
                 first_image = os.path.join(user_folder, images[0])
+        
+        conn = sqlite3.connect("database/face_lock.db")
+        c = conn.cursor()
+        c.execute("INSERT INTO access_logs (user_id, access_time, result) VALUES (?, ?, ?)", 
+                        (user_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result))
+        conn.commit()
+        conn.close()
     else:
         user_id = None
         result = "failed"
         first_image = './user_images/Unknown.png'
-
-    conn = sqlite3.connect("database/face_lock.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO access_logs (user_id, result) VALUES (?, ?)", (user_id, result))
-    conn.commit()
-    conn.close()
 
     return user_id, result, first_image
 

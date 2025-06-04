@@ -73,7 +73,7 @@ class Camera:
                     if embedding is not None:
                         user_id, result, image_path = recognize_and_log(embedding)
 
-                        if user_id and user_id != 0:  # ✅ chỉ mở cửa nếu không phải Unknown
+                        if user_id and user_id != 0: 
                             self.last_recognized_id = user_id
 
                             print(f"🔓 Door (re)unlocked for user_id: {user_id}")

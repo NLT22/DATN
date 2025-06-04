@@ -17,7 +17,7 @@ def get_door_status():
 def get_door_event_queue():
     return door_event_queue
 
-def auto_close_door(delay=2.0):
+def auto_close_door(delay=1.0):
     global auto_close_timer
     if auto_close_timer:
         auto_close_timer.cancel()

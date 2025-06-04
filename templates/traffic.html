@@ -18,6 +18,15 @@
         </div>
 
         <div class="col-md-2">
+          <label class="form-label">Vai trò</label>
+          <select name="role" class="form-select">
+            <option value="">Tất cả</option>
+            <option value="admin" {% if request.args.get('role') == 'admin' %}selected{% endif %}>Quản trị viên</option>
+            <option value="user" {% if request.args.get('role') == 'user' %}selected{% endif %}>Thành viên</option>
+          </select>
+        </div>
+
+        <div class="col-md-2">
           <label class="form-label">Từ ngày</label>
           <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
         </div>
@@ -27,14 +36,7 @@
           <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
         </div>
 
-        <div class="col-md-2">
-          <label class="form-label">Vai trò</label>
-          <select name="role" class="form-select">
-            <option value="">Tất cả</option>
-            <option value="admin" {% if request.args.get('role') == 'admin' %}selected{% endif %}>Quản trị viên</option>
-            <option value="user" {% if request.args.get('role') == 'user' %}selected{% endif %}>Thành viên</option>
-          </select>
-        </div>
+        
 
         <div class="col-md-3">
           <label class="form-label d-block">Lọc theo</label>
