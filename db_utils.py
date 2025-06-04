@@ -45,3 +45,35 @@ def init_db(db_path="database/face_lock.db"):
 
 
 # init_db()
+
+import sqlite3
+import random
+from datetime import datetime, timedelta
+
+def generate_dummy_logs(db_path="database/face_lock.db", num_logs=50):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+
+    user_ids = [1, 2, 3]  # 👤 Danh sách ID người dùng có sẵn
+    results = ['success', 'fail']  # 🎯 Kết quả truy cập
+
+    for _ in range(num_logs):
+        user_id = random.choice(user_ids)
+        result = random.choice(results)
+
+        # Tạo thời gian ngẫu nhiên trong vòng 30 ngày gần nhất
+        days_ago = random.randint(0, 29)
+        time_offset = timedelta(days=days_ago, hours=random.randint(0, 23), minutes=random.randint(0, 59))
+        access_time = datetime.now() - time_offset
+
+        c.execute("""
+            INSERT INTO access_logs (user_id, access_time, result)
+            VALUES (?, ?, ?)
+        """, (user_id, access_time.strftime('%Y-%m-%d %H:%M:%S'), result))
+
+    conn.commit()
+    conn.close()
+    print(f"✅ Đã thêm {num_logs} dòng dữ liệu ngẫu nhiên vào bảng access_logs.")
+
+# Gọi hàm
+generate_dummy_logs()
