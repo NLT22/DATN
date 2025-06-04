@@ -1,20 +1,27 @@
-# face_utils.py
 import faiss
 import numpy as np
 import pickle
 import os
 import sqlite3
 import cv2
-from datetime import datetime
+from datetime import datetime, timedelta
+
+# Lưu thời điểm nhận diện cuối cùng theo user_id
+last_logged_times = {}
+
+# Khoảng thời gian tối thiểu giữa 2 lần log liên tiếp cho cùng user (giây)
+MIN_LOG_INTERVAL = 10  
 
 FAISS_INDEX_PATH = "faiss_index/index.bin"
 ID_MAPPING_PATH = "embeddings/id_to_user.pkl"
 USER_IMAGE_DIR = 'user_images'
 
-eculid_distance = 1
+# Ngưỡng Cosine similarity (thay vì Euclidean distance)
+cosine_threshold = 0.5  # Giá trị từ 0 đến 1, càng gần 1 càng tương đồng
 
 def create_faiss_index(dim=512):
-    index = faiss.IndexFlatL2(dim) 
+    # Sử dụng IndexFlatIP cho Cosine similarity (Inner Product)
+    index = faiss.IndexFlatIP(dim) 
     return index
 
 def save_index(index):
@@ -51,10 +58,14 @@ def get_user_info(user_id):
 def recognize_and_log(embedding):
     index = load_index()
     id_map = load_id_mapping()
+    
+    # Chuẩn hóa embedding đầu vào
     embedding = np.array([embedding]).astype('float32')
+    embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
 
+    # Tìm kiếm vector gần nhất (Inner Product cho Cosine similarity)
     D, I = index.search(embedding, 1)
-    if D[0][0] < eculid_distance :
+    if D[0][0] > cosine_threshold:  # So sánh với ngưỡng Cosine
         user_id = id_map[I[0][0]]
         result = "success"
 
@@ -65,19 +76,67 @@ def recognize_and_log(embedding):
             images = sorted([f for f in os.listdir(user_folder) if f.endswith(('.jpg', '.jpeg', '.png'))])
             if images:
                 first_image = os.path.join(user_folder, images[0])
-        
-        conn = sqlite3.connect("database/face_lock.db")
-        c = conn.cursor()
-        c.execute("INSERT INTO access_logs (user_id, access_time, result) VALUES (?, ?, ?)", 
-                        (user_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result))
-        conn.commit()
-        conn.close()
+
+        # Kiểm tra khoảng thời gian từ lần log trước
+        now = datetime.now()
+        last_time = last_logged_times.get(user_id)
+        if not last_time or (now - last_time).total_seconds() >= MIN_LOG_INTERVAL:
+            conn = sqlite3.connect("database/face_lock.db")
+            c = conn.cursor()
+            c.execute("INSERT INTO access_logs (user_id, access_time, result) VALUES (?, ?, ?)", 
+                            (user_id, now.strftime('%Y-%m-%d %H:%M:%S'), result))
+            conn.commit()
+            conn.close()
+            last_logged_times[user_id] = now  # Cập nhật thời gian log cuối cùng
+        else:
+            print(f"[INFO] Đã nhận diện user_id {user_id} gần đây, không ghi log.")
+
     else:
         user_id = None
         result = "failed"
         first_image = './user_images/Unknown.png'
 
     return user_id, result, first_image
+
+def register_user(name, role, embedding, image_paths):
+    # 1. Lưu user vào DB
+    conn = sqlite3.connect("database/face_lock.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO users (name, role) VALUES (?, ?)", (name, role))
+    user_id = c.lastrowid
+    conn.commit()
+
+    # 2. Tạo thư mục riêng cho user
+    user_folder = os.path.join(USER_IMAGE_DIR, f'user_{user_id}')
+    os.makedirs(user_folder, exist_ok=True)
+
+    for idx, img_path in enumerate(image_paths):
+        filename = f'face_{idx}.jpg'
+        new_path = os.path.join(user_folder, filename)
+        os.rename(img_path, new_path)
+
+    # Chỉ lưu thư mục chứa ảnh vào bảng user_images
+    c.execute("INSERT INTO user_images (user_id, folder_path) VALUES (?, ?)", (user_id, user_folder))
+
+    conn.commit()
+    conn.close()
+
+    # 4. Thêm embedding vào FAISS
+    index = load_index()
+    id_map = load_id_mapping()
+
+    # Chuẩn hóa embedding trước khi thêm
+    embedding = np.array([embedding]).astype('float32')
+    embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
+    index.add(embedding)
+
+    idx = index.ntotal - 1
+    id_map[idx] = user_id
+
+    save_index(index)
+    save_id_mapping(id_map)
+
+    print(f"✅ Registered {name} with user_id={user_id}, images={len(image_paths)}")
 
 def increased_crop(img, bbox: tuple, bbox_inc: float = 1.5):
     real_h, real_w = img.shape[:2]

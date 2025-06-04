@@ -3,6 +3,8 @@ from flask import Flask, render_template, Response, send_from_directory, request
 import time
 from camera import Camera
 import db_utils, face_utils
+
+from face_utils import register_user
 import numpy as np
 import sqlite3
 from collections import defaultdict
@@ -197,6 +199,8 @@ def add_user():
 
                     embedding = recognizer.get_embedding(aligned)
                     if embedding is not None:
+                        # Chuẩn hóa embedding trước khi thêm vào danh sách
+                        embedding = embedding / np.linalg.norm(embedding)
                         embeddings.append(embedding)
                         saved_image_paths.append(img_path)
                     else:
@@ -205,7 +209,9 @@ def add_user():
                     print(f"[WARN] Không detect/align được ảnh: {file.filename}")
 
         if embeddings:
+            # Tính trung bình các embedding và chuẩn hóa lại
             mean_embedding = np.mean(embeddings, axis=0)
+            mean_embedding = mean_embedding / np.linalg.norm(mean_embedding)
             register_user(name, role, mean_embedding, saved_image_paths)
         else:
             print("[ERROR] Không có embedding nào hợp lệ, không thể đăng ký user.")
@@ -213,46 +219,6 @@ def add_user():
         return redirect('/add_user')
 
     return render_template('add_user.html')
-
-
-def register_user(name, role, embedding, image_paths):
-    # 1. Lưu user vào DB
-    conn = sqlite3.connect("database/face_lock.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO users (name, role) VALUES (?, ?)", (name, role))
-    user_id = c.lastrowid
-    conn.commit()
-
-    # 2. Tạo thư mục riêng cho user
-    user_folder = os.path.join(USER_IMAGE_DIR, f'user_{user_id}')
-    os.makedirs(user_folder, exist_ok=True)
-
-    for idx, img_path in enumerate(image_paths):
-        filename = f'face_{idx}.jpg'
-        new_path = os.path.join(user_folder, filename)
-        os.rename(img_path, new_path)
-
-    # Chỉ lưu thư mục chứa ảnh vào bảng user_images
-    c.execute("INSERT INTO user_images (user_id, folder_path) VALUES (?, ?)", (user_id, user_folder))
-
-    conn.commit()
-    conn.close()
-
-    # 4. Thêm embedding vào FAISS
-    index = face_utils.load_index()
-    id_map = face_utils.load_id_mapping()
-
-    embedding = np.array([embedding]).astype('float32')
-    index.add(embedding)
-
-    idx = index.ntotal - 1
-    id_map[idx] = user_id
-
-    face_utils.save_index(index)
-    face_utils.save_id_mapping(id_map)
-
-    print(f"✅ Registered {name} with user_id={user_id}, images={len(image_paths)}")
-
 
 if __name__ == '__main__':
     app.run(debug=True)
