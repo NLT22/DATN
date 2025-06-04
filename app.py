@@ -1,5 +1,6 @@
 ## app.py
-from flask import Flask, render_template, Response, send_from_directory, request, redirect
+from flask import Flask, render_template, Response, send_from_directory, request, redirect, jsonify, stream_with_context
+import time
 from camera import Camera
 import db_utils, face_utils
 import numpy as np
@@ -10,9 +11,10 @@ from face_recognize import FaceRecognizerONNX
 from face_detector import FaceDetector
 from werkzeug.utils import secure_filename
 from door_control import get_door_status
+from door_control import get_door_event_queue
 
 app = Flask(__name__)
-camera = Camera(detector='yunet')  # yunet/haar
+camera = Camera(detector='yunet')
 
 UPLOAD_FOLDER = 'uploads'
 USER_IMAGE_DIR = 'user_images'
@@ -23,14 +25,7 @@ recognizer = FaceRecognizerONNX()
 
 @app.route('/')
 def index():
-    user_id = camera.last_recognized_id or 0
-    image_url = f'/recognized_identity_image/{user_id}'
-    return render_template('index.html', door_status=get_door_status(), recognized_image=image_url)
-
-@app.route('/current_user_id')
-def current_user_id():
-    user_id = camera.last_recognized_id or 0
-    return {'user_id': user_id}
+    return render_template('index.html')
 
 @app.route('/traffic_monitor')
 def traffic_monitor():
@@ -48,11 +43,6 @@ def recognized_identity_image(user_id):
             return send_from_directory(user_folder, images[0])
     return send_from_directory(USER_IMAGE_DIR, 'Unknown.png')
 
-
-@app.route('/identity_image')
-def identity_image():
-    return send_from_directory('Identity', 'identity_image.jpeg')
-
 @app.route('/door_status')
 def door_status():
     return get_door_status()
@@ -62,6 +52,28 @@ def video_feed():
     return Response(camera.gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route('/sse/updates')
+def sse_updates():
+    def event_stream():
+        last_user_id = None
+        q = get_door_event_queue()
+
+        while True:
+            try:
+                # Check door status update
+                door = q.get(timeout=0.5)
+                yield f"event: door\ndata: {door}\n\n"
+            except:
+                pass  # No new door event
+
+            # Check if user ID changed
+            user_id = camera.last_recognized_id or 0
+            if user_id != last_user_id:
+                last_user_id = user_id
+                yield f"event: user\ndata: {user_id}\n\n"
+            time.sleep(0.2)  # prevent CPU overuse
+
+    return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
     if request.method == 'POST':

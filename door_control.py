@@ -1,25 +1,27 @@
-# door_control.py
-
+from queue import Queue
 import threading
 
 door_status = "CLOSED"
-auto_close_timer = None  # Dùng để reset timeout khi phát hiện liên tục
+door_event_queue = Queue()
+auto_close_timer = None
 
 def set_door_status(status):
     global door_status
-    door_status = status
+    if status != door_status:
+        door_status = status
+        door_event_queue.put(status)  # báo SSE cập nhật
 
 def get_door_status():
     return door_status
 
+def get_door_event_queue():
+    return door_event_queue
+
 def auto_close_door(delay=2.0):
     global auto_close_timer
-
-    # Nếu có timer cũ -> hủy
-    if auto_close_timer is not None:
+    if auto_close_timer:
         auto_close_timer.cancel()
 
-    # Tạo timer mới để đóng cửa
     def close():
         set_door_status("CLOSED")
         print("🔒 Door auto-closed")

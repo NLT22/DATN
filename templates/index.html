@@ -74,48 +74,30 @@
 </head>
 
 <script>
-    // Cập nhật trạng thái cửa
-    function fetchDoorStatus() {
-        fetch('/door_status')
-            .then(response => response.text())
-            .then(status => {
-                const statusDiv = document.getElementById('doorStatus');
-                if (status.trim() === "OPEN") {
-                    statusDiv.textContent = "Door: OPEN";
-                    statusDiv.classList.add("status-open");
-                    statusDiv.classList.remove("status-closed");
-                } else {
-                    statusDiv.textContent = "Door: CLOSED";
-                    statusDiv.classList.add("status-closed");
-                    statusDiv.classList.remove("status-open");
-                }
-            })
-            .catch(error => {
-                console.error("Error fetching door status:", error);
-                document.getElementById('doorStatus').textContent = "Error";
-            });
+const evtSource = new EventSource("/sse/updates");
+
+evtSource.addEventListener("user", function(event) {
+    const userId = parseInt(event.data);
+    const imgEl = document.getElementById("recognized-image");
+    if (imgEl) {
+        imgEl.src = `/recognized_identity_image/${userId}?t=${Date.now()}`;  // cache-busting
     }
+});
 
-    setInterval(fetchDoorStatus, 200); // cập nhật trạng thái cửa mỗi 200ms
-    fetchDoorStatus();
-
-    // ✅ Cập nhật ảnh khuôn mặt được nhận diện
-    function updateRecognizedImage() {
-        fetch('/current_user_id')
-            .then(response => response.json())
-            .then(data => {
-                const userId = data.user_id;
-                const img = document.getElementById("recognized-image");
-                img.src = `/recognized_identity_image/${userId}?t=${Date.now()}`; // tránh cache ảnh cũ
-            })
-            .catch(error => {
-                console.error("Error updating recognized image:", error);
-            });
+evtSource.addEventListener("door", function(event) {
+    const doorStatus = event.data;
+    const statusEl = document.getElementById("doorStatus");
+    if (statusEl) {
+        statusEl.textContent = doorStatus;
+        if (doorStatus === "OPEN") {
+            statusEl.style.color = "green";
+        } else {
+            statusEl.style.color = "red";
+        }
     }
-
-    setInterval(updateRecognizedImage, 2000);  // cập nhật ảnh mỗi 2 giây
-    updateRecognizedImage();
+});
 </script>
+
 
 <body>
     <h1>🔐 Smart Door Lock System</h1>
@@ -151,32 +133,5 @@
         </div>
     </div>
 
-    <!-- Thêm đoạn script ở cuối file (trước </body>) -->
-    <script>
-        function fetchDoorStatus() {
-            fetch('/door_status')
-                .then(response => response.text())
-                .then(status => {
-                    const statusDiv = document.getElementById('doorStatus');
-                    if (status.trim() === "OPEN") {
-                        statusDiv.textContent = "Door: OPEN";
-                        statusDiv.classList.add("status-open");
-                        statusDiv.classList.remove("status-closed");
-                    } else {
-                        statusDiv.textContent = "Door: CLOSED";
-                        statusDiv.classList.add("status-closed");
-                        statusDiv.classList.remove("status-open");
-                    }
-                })
-                .catch(error => {
-                    console.error("Error fetching door status:", error);
-                    document.getElementById('doorStatus').textContent = "Error";
-                });
-        }
-
-        // Cập nhật mỗi giây
-        setInterval(fetchDoorStatus, 200);
-        fetchDoorStatus();
-    </script>
 </body>
 </html>
