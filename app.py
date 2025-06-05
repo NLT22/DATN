@@ -2,9 +2,9 @@
 from flask import Flask, flash, render_template, Response, send_from_directory, request, redirect, jsonify, stream_with_context, session, url_for
 import time
 from camera import Camera
-import db_utils, face_utils
 from functools import wraps
-from face_utils import register_user
+from face_utils import *
+import faiss
 import numpy as np
 import sqlite3
 from collections import defaultdict
@@ -250,6 +250,10 @@ def sse_updates():
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
 
+@app.route('/user_images/<path:filename>')
+def serve_user_image(filename):
+    return send_from_directory('user_images', filename)
+
 
 @app.route('/manage_users')
 @admin_required
@@ -264,7 +268,6 @@ def manage_users():
     conn = sqlite3.connect('database/face_lock.db')
     c = conn.cursor()
 
-    # Xây dựng điều kiện WHERE động
     query = "SELECT id, name, role, username, registered_at FROM users WHERE 1=1"
     params = []
 
@@ -280,24 +283,44 @@ def manage_users():
         query += " AND date(registered_at) >= date(?)"
         params.append(start_date)
 
-    # Đếm tổng số kết quả để phân trang
+    # Đếm số dòng để phân trang
     count_query = f"SELECT COUNT(*) FROM ({query})"
     c.execute(count_query, params)
     total_count = c.fetchone()[0]
     total_pages = (total_count + per_page - 1) // per_page
     has_next = page < total_pages
 
-    # Thêm LIMIT OFFSET cho phân trang
+    # Thêm LIMIT OFFSET
     query += " ORDER BY registered_at DESC LIMIT ? OFFSET ?"
     params += [per_page, (page - 1) * per_page]
 
     c.execute(query, params)
-    users = [dict(id=row[0], name=row[1], role=row[2], username=row[3], registered_at=row[4]) for row in c.fetchall()]
+    user_rows = c.fetchall()
+
+    # Tìm ảnh đầu tiên của mỗi user
+    users = []
+    for row in user_rows:
+        user_id = row[0]
+        image_dir = os.path.join('user_images', f'user_{user_id}')
+        image_path = None
+        if os.path.isdir(image_dir):
+            images = sorted([f for f in os.listdir(image_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+            if images:
+                image_path = f'{image_dir}/{images[0]}'  # VD: user_images/user_3/face_0.jpg
+
+        users.append({
+            'id': row[0],
+            'name': row[1],
+            'role': row[2],
+            'username': row[3],
+            'registered_at': row[4],
+            'image_path': image_path
+        })
+
     conn.close()
 
-    # Giữ lại các tham số lọc để dùng trong template
     args = request.args.to_dict()
-    args.pop('page', None)  # loại bỏ page để tránh lặp khi chuyển trang
+    args.pop('page', None)
 
     return render_template('manage_users.html',
                            users=users,
@@ -307,12 +330,12 @@ def manage_users():
                            has_next=has_next,
                            args=args)
 
+
 @app.route('/delete_user/<int:user_id>')
 def delete_user(user_id):
+    # 1. Xóa thư mục ảnh
     conn = sqlite3.connect('database/face_lock.db')
     c = conn.cursor()
-
-    # Xóa thư mục ảnh liên quan nếu có
     c.execute("SELECT folder_path FROM user_images WHERE user_id=?", (user_id,))
     row = c.fetchone()
     if row:
@@ -321,14 +344,48 @@ def delete_user(user_id):
             import shutil
             shutil.rmtree(folder_path)
 
-    # Xóa bản ghi trong user_images, access_logs, users
+    # 2. Xóa khỏi FAISS và id_map
+    index = load_index()
+    id_map = load_id_mapping()
+
+    # Tìm các index trong id_map khớp với user_id
+    ids_to_remove = [i for i, uid in id_map.items() if uid == user_id]
+    if ids_to_remove:
+        mask = np.ones(index.ntotal, dtype=bool)
+        mask[ids_to_remove] = False
+        new_vectors = index.reconstruct_n(0, index.ntotal)
+        new_vectors = new_vectors[mask]
+        
+        # Tạo index mới
+        dim = new_vectors.shape[1]
+        new_index = faiss.IndexFlatIP(dim)
+        new_index.add(new_vectors.astype('float32'))
+        
+        # Cập nhật lại id_map
+        new_id_map = {}
+        j = 0
+        for i in range(index.ntotal):
+            if i in ids_to_remove:
+                continue
+            new_id_map[j] = id_map[i]
+            j += 1
+
+        save_index(new_index)
+        save_id_mapping(new_id_map)
+    else:
+        print(f"[WARN] Không tìm thấy embedding cho user_id={user_id} trong FAISS index.")
+
+    # 3. Xóa dữ liệu trong SQLite
     c.execute("DELETE FROM user_images WHERE user_id=?", (user_id,))
     c.execute("DELETE FROM access_logs WHERE user_id=?", (user_id,))
     c.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
     conn.close()
-    flash('Đã xóa người dùng thành công!', 'success')
+
+    flash('✅ Đã xóa người dùng thành công!', 'success')
     return redirect(url_for('manage_users'))
+
+
 
 @app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
 @admin_required

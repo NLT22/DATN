@@ -45,6 +45,7 @@
         <thead class="table-primary">
           <tr>
             <th>#</th>
+            <th>Ảnh</th>
             <th>Tên</th>
             <th>Vai trò</th>
             <th>Tài khoản</th>
@@ -56,6 +57,9 @@
           {% for user in users %}
           <tr>
             <td>{{ loop.index + (page - 1) * per_page }}</td>
+            <td>
+              <img src="/{{ user.image_path }}" width="80">
+            </td>
             <td>{{ user.name }}</td>
             <td>{{ user.role }}</td>
             <td>{{ user.username }}</td>
