@@ -1,5 +1,3 @@
-# camera.py
-
 import cv2
 from face_detector import FaceDetector
 from anti_spoof import AntiSpoof
@@ -41,8 +39,15 @@ class Camera:
     
     def process_frame(self, frame):
         try:
+            # Đo thời gian xử lý toàn bộ
+            start_total = time.time()
+
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # Đo thời gian phát hiện khuôn mặt
+            start_detect = time.time()
             bboxes = self.face_detector.detect_faces(rgb_frame)
+            detect_time = time.time() - start_detect
 
             if not bboxes:
                 # Không phát hiện khuôn mặt → reset trạng thái nhận diện và bắt đầu đếm ngược tự động khóa
@@ -50,14 +55,21 @@ class Camera:
                     print("👤 No face detected. Resetting identity and starting auto-close timer.")
                     self.last_recognized_id = None
                     auto_close_door()
+                total_time = time.time() - start_total
+                # Hiển thị thời gian xử lý khi không có khuôn mặt
+                cv2.putText(frame, f"Total: {total_time*1000:.2f}ms (No face)", 
+                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 return frame  # return sớm nếu không có bbox
 
             for bbox in bboxes:
                 x1, y1, x2, y2 = bbox
 
-                # Face crop mở rộng chỉ dùng cho anti-spoof
+                # Đo thời gian xử lý anti-spoof
+                start_antispoof = time.time()
                 face_crop = increased_crop(rgb_frame, bbox, 1.5)
                 score = self.anti_spoof.predict(face_crop)
+                antispoof_time = time.time() - start_antispoof
+
                 label = 'REAL' if score > antispoof_threshold else 'FAKE'
                 color = (0, 255, 0) if label == 'REAL' else (0, 0, 255)
 
@@ -67,11 +79,14 @@ class Camera:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
                 if label == 'REAL':
+                    # Đo thời gian nhận diện khuôn mặt
+                    start_recognize = time.time()
                     face_roi = rgb_frame[y1:y2, x1:x2]
                     embedding = self.recognizer.get_embedding(face_roi)
 
                     if embedding is not None:
                         user_id, result, image_path = recognize_and_log(embedding)
+                        recognize_time = time.time() - start_recognize
 
                         if user_id and user_id != 0: 
                             self.last_recognized_id = user_id
@@ -87,14 +102,31 @@ class Camera:
                             text = 'Unknown'
                             print("🚫 Unknown person — door stays closed")
 
-
                         cv2.putText(frame, text, (x1, y2 + 25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
                     else:
+                        recognize_time = 0
                         print("[WARN] Không lấy được embedding")
+
+                # Tính tổng thời gian xử lý
+                total_time = time.time() - start_total
+
+                # Hiển thị thời gian xử lý trên frame
+                cv2.putText(frame, f"Total: {total_time*1000:.2f}ms", 
+                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(frame, f"Detect: {detect_time*1000:.2f}ms", 
+                            (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(frame, f"AntiSpoof: {antispoof_time*1000:.2f}ms", 
+                            (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                if label == 'REAL' and embedding is not None:
+                    cv2.putText(frame, f"Recognize: {recognize_time*1000:.2f}ms", 
+                                (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
             return frame
 
         except Exception as e:
             print("[ERROR] process_frame lỗi:", e)
+            total_time = time.time() - start_total
+            cv2.putText(frame, f"Total: {total_time*1000:.2f}ms (Error)", 
+                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             return frame

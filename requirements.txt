@@ -33,6 +33,7 @@ onnx==1.18.0
 onnxruntime==1.22.0
 onnxruntime-gpu==1.22.0
 opencv-python==4.11.0.86
+opencv-python-headless==4.11.0.86
 packaging==25.0
 pillow==11.2.1
 prettytable==3.16.0

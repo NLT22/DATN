@@ -18,7 +18,7 @@ class FaceDetector:
     def detect_faces(self, image):
         if self.detector_type == 'haar':
             gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            faces = self.detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+            faces = self.detector.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
             return [(x, y, x + w, y + h) for (x, y, w, h) in faces]
 
         elif self.detector_type == 'yunet':
