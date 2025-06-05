@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quản lý người dùng</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+  <h2 class="mb-4 text-center">👥 Quản lý người dùng</h2>
+
+  <!-- Filter Form -->
+  <form method="GET" action="{{ url_for('manage_users') }}" class="card p-3 shadow-sm mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Tên người dùng</label>
+        <input type="text" name="name" class="form-control" placeholder="Nhập tên" value="{{ request.args.get('name', '') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Vai trò</label>
+        <select name="role" class="form-select">
+          <option value="">Tất cả</option>
+          <option value="admin" {% if request.args.get('role') == 'admin' %}selected{% endif %}>Quản trị viên</option>
+          <option value="user" {% if request.args.get('role') == 'user' %}selected{% endif %}>Thành viên</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Từ ngày</label>
+        <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">🔍 Lọc</button>
+      </div>
+    </div>
+  </form>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Danh sách người dùng</h3>
+    <a href="{{ url_for('add_user') }}" class="btn btn-outline-primary">⬆️ Thêm thành viên</a>
+  </div>
+
+  
+  <div class="card p-4 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped">
+        <thead class="table-primary">
+          <tr>
+            <th>#</th>
+            <th>Tên</th>
+            <th>Vai trò</th>
+            <th>Tài khoản</th>
+            <th>Ngày tạo</th>
+            <th>Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ loop.index + (page - 1) * per_page }}</td>
+            <td>{{ user.name }}</td>
+            <td>{{ user.role }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.registered_at }}</td>
+            <td>
+              <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-warning btn-sm">✏️ Sửa</a>
+              <a href="{{ url_for('delete_user', user_id=user.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa người dùng này không?')">🗑️ Xóa</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <nav class="mt-3">
+      <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('manage_users', page=page-1, **args) }}">⬅️ Trước</a>
+          </li>
+        {% endif %}
+
+        {% set display_range = 2 %}
+        {% if page > display_range + 1 %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('manage_users', page=1, **args) }}">1</a>
+          </li>
+          <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+
+        {% for p in range(page - display_range, page + display_range + 1) %}
+          {% if 1 <= p <= total_pages %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+              <a class="page-link" href="{{ url_for('manage_users', page=p, **args) }}">{{ p }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages - display_range %}
+          <li class="page-item disabled"><span class="page-link">...</span></li>
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('manage_users', page=total_pages, **args) }}">{{ total_pages }}</a>
+          </li>
+        {% endif %}
+
+        {% if has_next %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('manage_users', page=page+1, **args) }}">Tiếp ➡️</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+
+  <div class="text-end mt-3">
+    <a href="{{ url_for('index') }}" class="btn btn-primary">◀️ Về trang chủ</a>
+  </div>
+</div>
+</body>
+</html>

@@ -98,11 +98,17 @@ def recognize_and_log(embedding):
 
     return user_id, result, first_image
 
-def register_user(name, role, embedding, image_paths):
+def register_user(name, role, embedding, image_paths, username=None, password_hash=None):
     # 1. Lưu user vào DB
     conn = sqlite3.connect("database/face_lock.db")
     c = conn.cursor()
-    c.execute("INSERT INTO users (name, role) VALUES (?, ?)", (name, role))
+
+    if role == 'admin' and username and password_hash:
+        c.execute("INSERT INTO users (name, role, username, password) VALUES (?, ?, ?, ?)",
+                  (name, role, username, password_hash))
+    else:
+        c.execute("INSERT INTO users (name, role) VALUES (?, ?)", (name, role))
+
     user_id = c.lastrowid
     conn.commit()
 
@@ -115,7 +121,7 @@ def register_user(name, role, embedding, image_paths):
         new_path = os.path.join(user_folder, filename)
         os.rename(img_path, new_path)
 
-    # Chỉ lưu thư mục chứa ảnh vào bảng user_images
+    # 3. Lưu đường dẫn ảnh vào bảng user_images
     c.execute("INSERT INTO user_images (user_id, folder_path) VALUES (?, ?)", (user_id, user_folder))
 
     conn.commit()
@@ -125,7 +131,6 @@ def register_user(name, role, embedding, image_paths):
     index = load_index()
     id_map = load_id_mapping()
 
-    # Chuẩn hóa embedding trước khi thêm
     embedding = np.array([embedding]).astype('float32')
     embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
     index.add(embedding)
@@ -136,7 +141,7 @@ def register_user(name, role, embedding, image_paths):
     save_index(index)
     save_id_mapping(id_map)
 
-    print(f"✅ Registered {name} with user_id={user_id}, images={len(image_paths)}")
+    print(f"✅ Registered {name} with user_id={user_id}, role={role}, images={len(image_paths)}")
 
 def increased_crop(img, bbox: tuple, bbox_inc: float = 1.5):
     real_h, real_w = img.shape[:2]

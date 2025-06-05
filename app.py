@@ -1,9 +1,9 @@
 ## app.py
-from flask import Flask, render_template, Response, send_from_directory, request, redirect, jsonify, stream_with_context
+from flask import Flask, flash, render_template, Response, send_from_directory, request, redirect, jsonify, stream_with_context, session, url_for
 import time
 from camera import Camera
 import db_utils, face_utils
-
+from functools import wraps
 from face_utils import register_user
 import numpy as np
 import sqlite3
@@ -18,12 +18,21 @@ from face_detector import FaceDetector
 from werkzeug.utils import secure_filename
 from door_control import get_door_status
 from door_control import get_door_event_queue
+import bcrypt
+
 
 # from werkzeug.datastructures import MultiDict
 
 
+
 app = Flask(__name__)
 camera = Camera(detector='haar')
+app.secret_key = '12345678'  # nên đặt bằng biến môi trường
+
+# Giả định tài khoản admin
+ADMIN_CREDENTIALS = {
+    'admin': '1234'  # hoặc lấy từ file .env / database
+}
 
 UPLOAD_FOLDER = 'uploads'
 USER_IMAGE_DIR = 'user_images'
@@ -32,11 +41,77 @@ os.makedirs(USER_IMAGE_DIR, exist_ok=True)
 
 recognizer = FaceRecognizerONNX()
 
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        conn = sqlite3.connect("database/face_lock.db")
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username = ? AND role = 'admin'", (username,))
+        result = c.fetchone()
+        conn.close()
+
+        if result and bcrypt.checkpw(password.encode('utf-8'), result[0]):
+            session['admin_logged_in'] = True
+            session['admin_username'] = username
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='Sai tên đăng nhập hoặc mật khẩu.')
+
+    return render_template('login.html')
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@admin_required
+def change_password():
+    if request.method == 'POST':
+        current = request.form['current_password']
+        new = request.form['new_password']
+        confirm = request.form['confirm_password']
+
+        if new != confirm:
+            return render_template('change_password.html', error='Xác nhận mật khẩu không khớp.')
+
+        conn = sqlite3.connect("database/face_lock.db")
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username = ?", (session['admin_username'],))
+        result = c.fetchone()
+
+        if not result or not bcrypt.checkpw(current.encode('utf-8'), result[0]):
+            conn.close()
+            return render_template('change_password.html', error='Mật khẩu hiện tại không đúng.')
+
+        new_hash = bcrypt.hashpw(new.encode('utf-8'), bcrypt.gensalt())
+        c.execute("UPDATE users SET password = ? WHERE username = ?", (new_hash, session['admin_username']))
+        conn.commit()
+        conn.close()
+        return render_template('change_password.html', success='Đã đổi mật khẩu thành công.')
+
+    return render_template('change_password.html')
+
+
+
+@app.route('/logout')
+def logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('login'))
+
 @app.route('/')
+@admin_required
 def index():
     return render_template('index.html')
 
 @app.route('/traffic_monitor')
+@admin_required
 def traffic_monitor():
     # Lấy các tham số lọc và phân trang
     name_filter = request.args.get('name', '').strip()
@@ -175,15 +250,166 @@ def sse_updates():
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
 
+
+@app.route('/manage_users')
+@admin_required
+def manage_users():
+    # Lấy dữ liệu từ request
+    name_filter = request.args.get('name', '').strip()
+    role_filter = request.args.get('role', '')
+    start_date = request.args.get('start_date', '')
+    page = int(request.args.get('page', 1))
+    per_page = 10
+
+    conn = sqlite3.connect('database/face_lock.db')
+    c = conn.cursor()
+
+    # Xây dựng điều kiện WHERE động
+    query = "SELECT id, name, role, username, registered_at FROM users WHERE 1=1"
+    params = []
+
+    if name_filter:
+        query += " AND name LIKE ?"
+        params.append(f"%{name_filter}%")
+    
+    if role_filter:
+        query += " AND role = ?"
+        params.append(role_filter)
+    
+    if start_date:
+        query += " AND date(registered_at) >= date(?)"
+        params.append(start_date)
+
+    # Đếm tổng số kết quả để phân trang
+    count_query = f"SELECT COUNT(*) FROM ({query})"
+    c.execute(count_query, params)
+    total_count = c.fetchone()[0]
+    total_pages = (total_count + per_page - 1) // per_page
+    has_next = page < total_pages
+
+    # Thêm LIMIT OFFSET cho phân trang
+    query += " ORDER BY registered_at DESC LIMIT ? OFFSET ?"
+    params += [per_page, (page - 1) * per_page]
+
+    c.execute(query, params)
+    users = [dict(id=row[0], name=row[1], role=row[2], username=row[3], registered_at=row[4]) for row in c.fetchall()]
+    conn.close()
+
+    # Giữ lại các tham số lọc để dùng trong template
+    args = request.args.to_dict()
+    args.pop('page', None)  # loại bỏ page để tránh lặp khi chuyển trang
+
+    return render_template('manage_users.html',
+                           users=users,
+                           page=page,
+                           per_page=per_page,
+                           total_pages=total_pages,
+                           has_next=has_next,
+                           args=args)
+
+@app.route('/delete_user/<int:user_id>')
+def delete_user(user_id):
+    conn = sqlite3.connect('database/face_lock.db')
+    c = conn.cursor()
+
+    # Xóa thư mục ảnh liên quan nếu có
+    c.execute("SELECT folder_path FROM user_images WHERE user_id=?", (user_id,))
+    row = c.fetchone()
+    if row:
+        folder_path = row[0]
+        if os.path.exists(folder_path):
+            import shutil
+            shutil.rmtree(folder_path)
+
+    # Xóa bản ghi trong user_images, access_logs, users
+    c.execute("DELETE FROM user_images WHERE user_id=?", (user_id,))
+    c.execute("DELETE FROM access_logs WHERE user_id=?", (user_id,))
+    c.execute("DELETE FROM users WHERE id=?", (user_id,))
+    conn.commit()
+    conn.close()
+    flash('Đã xóa người dùng thành công!', 'success')
+    return redirect(url_for('manage_users'))
+
+@app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
+@admin_required
+def edit_user(user_id):
+    conn = sqlite3.connect('database/face_lock.db')
+    c = conn.cursor()
+
+    if request.method == 'POST':
+        name = request.form['name']
+        role = request.form['role']
+        username = request.form.get('username') if role == 'admin' else None
+
+        # Kiểm tra nếu là admin thì phải có username
+        if role == 'admin' and not username:
+            flash('Bạn phải nhập tên đăng nhập cho quản trị viên.', 'danger')
+            return redirect(request.url)
+
+        # Kiểm tra username trùng nếu thay đổi username
+        c.execute("SELECT username FROM users WHERE id=?", (user_id,))
+        current_username = c.fetchone()[0]
+
+        if role == 'admin' and username != current_username:
+            c.execute("SELECT id FROM users WHERE username = ?", (username,))
+            if c.fetchone():
+                conn.close()
+                flash('Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.', 'danger')
+                return redirect(request.url)
+
+        c.execute("""
+            UPDATE users SET name=?, role=?, username=? WHERE id=?
+        """, (name, role, username, user_id))
+        conn.commit()
+        conn.close()
+        flash('Cập nhật thông tin người dùng thành công!', 'success')
+        return redirect(url_for('manage_users'))
+
+    # GET method
+    c.execute("SELECT id, name, role, username FROM users WHERE id=?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        user = dict(id=row[0], name=row[1], role=row[2], username=row[3])
+        return render_template('edit_user.html', user=user)
+    else:
+        flash('Không tìm thấy người dùng!', 'danger')
+        return redirect(url_for('manage_users'))
+
+
 @app.route('/add_user', methods=['GET', 'POST'])
+@admin_required
 def add_user():
     if request.method == 'POST':
         name = request.form['name']
         role = request.form['role']
         files = request.files.getlist('face_images')
 
+        username = None
+        password_hash = None
+
+        if role == 'admin':
+            username = request.form.get('username')
+            if not username:
+                return render_template('add_user.html', error='Bạn phải nhập tên đăng nhập cho quản trị viên.')
+
+            # Kiểm tra username đã tồn tại chưa
+            conn = sqlite3.connect("database/face_lock.db")
+            c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE username = ?", (username,))
+            if c.fetchone():
+                conn.close()
+                return render_template('add_user.html', error='Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.')
+            conn.close()
+
+            # Băm mật khẩu mặc định
+            import bcrypt
+            password_hash = bcrypt.hashpw("0000".encode('utf-8'), bcrypt.gensalt())
+
         embeddings = []
         saved_image_paths = []
+
         from face_retina_detector import RetinaFaceDetector
         detector = RetinaFaceDetector(device='cpu')
 
@@ -199,7 +425,6 @@ def add_user():
 
                     embedding = recognizer.get_embedding(aligned)
                     if embedding is not None:
-                        # Chuẩn hóa embedding trước khi thêm vào danh sách
                         embedding = embedding / np.linalg.norm(embedding)
                         embeddings.append(embedding)
                         saved_image_paths.append(img_path)
@@ -209,16 +434,18 @@ def add_user():
                     print(f"[WARN] Không detect/align được ảnh: {file.filename}")
 
         if embeddings:
-            # Tính trung bình các embedding và chuẩn hóa lại
             mean_embedding = np.mean(embeddings, axis=0)
             mean_embedding = mean_embedding / np.linalg.norm(mean_embedding)
-            register_user(name, role, mean_embedding, saved_image_paths)
+
+            register_user(name, role, mean_embedding, saved_image_paths, username, password_hash)
+
         else:
             print("[ERROR] Không có embedding nào hợp lệ, không thể đăng ký user.")
 
-        return redirect('/add_user')
+        return render_template('add_user.html', success=f"✅ Thêm người dùng '{name}' ({role}) thành công!")
 
     return render_template('add_user.html')
+
 
 if __name__ == '__main__':
     app.run(debug=True)

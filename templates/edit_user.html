@@ -7,7 +7,7 @@
 </head>
 <body class="bg-light">
   <div class="container mt-5">
-    <h2 class="mb-4 text-center">🔐 Thêm người dùng mới</h2>
+    <h2 class="mb-4 text-center">✏️ Chỉnh sửa người dùng</h2>
 
     {% if error %}
       <div class="alert alert-danger" role="alert">
@@ -19,32 +19,32 @@
       </div>
     {% endif %}
 
-    <form action="/add_user" method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm">
+    <form action="{{ url_for('edit_user', user_id=user.id) }}" method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm">
       <div class="mb-3">
         <label for="name" class="form-label">Tên đầy đủ</label>
-        <input type="text" name="name" class="form-control" required placeholder="e.g. Nguyễn Lê Trung">
+        <input type="text" name="name" class="form-control" required value="{{ user.name }}">
       </div>
 
       <div class="mb-3">
         <label for="role" class="form-label">Vai trò</label>
         <select name="role" class="form-select" required>
-          <option value="user" selected>Thành viên</option>
-          <option value="admin">Quản trị viên</option>
+            <option value="user" {% if user.role == 'user' %}selected{% endif %}>Thành viên</option>
+            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Quản trị viên</option>
         </select>
       </div>
 
       <div class="mb-3" id="admin-username-field" style="display:none;">
         <label for="username" class="form-label">Tên đăng nhập (cho quản trị viên)</label>
-        <input type="text" name="username" class="form-control" placeholder="e.g. trungadmin" id="username-input">
+        <input type="text" name="username" class="form-control" value="{{ user.username or '' }}" id="username-input">
       </div>
 
-      <div class="mb-3">
+      <!-- <div class="mb-3">
         <label for="face_images" class="form-label">Ảnh khuôn mặt (Có thể tải lên nhiều ảnh)</label>
         <input type="file" name="face_images" class="form-control" accept="image/*" multiple required>
         <div class="form-text">Vui lòng tải ảnh khuôn mặt rõ ràng</div>
-      </div>
+      </div> -->
 
-      <button type="submit" class="btn btn-primary w-100">⬆️ Thêm người dùng mới</button>
+      <button type="submit" class="btn btn-primary w-100">💾 Cập nhật thông tin</button>
     </form>
 
     <div class="text-end mt-3">
