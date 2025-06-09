@@ -17,7 +17,7 @@ ID_MAPPING_PATH = "embeddings/id_to_user.pkl"
 USER_IMAGE_DIR = 'user_images'
 
 # Ngưỡng Cosine similarity (thay vì Euclidean distance)
-cosine_threshold = 0.5  # Giá trị từ 0 đến 1, càng gần 1 càng tương đồng
+cosine_threshold = 0.2  # Giá trị từ 0 đến 1, càng gần 1 càng tương đồng
 
 def create_faiss_index(dim=512):
     # Sử dụng IndexFlatIP cho Cosine similarity (Inner Product)

@@ -27,12 +27,8 @@ import bcrypt
 
 app = Flask(__name__)
 camera = Camera(detector='haar')
-app.secret_key = '12345678'  # nên đặt bằng biến môi trường
+app.secret_key = '12345678' 
 
-# Giả định tài khoản admin
-ADMIN_CREDENTIALS = {
-    'admin': '1234'  # hoặc lấy từ file .env / database
-}
 
 UPLOAD_FOLDER = 'uploads'
 USER_IMAGE_DIR = 'user_images'
@@ -235,18 +231,16 @@ def sse_updates():
 
         while True:
             try:
-                # Check door status update
                 door = q.get(timeout=0.5)
                 yield f"event: door\ndata: {door}\n\n"
             except:
-                pass  # No new door event
+                pass  
 
-            # Check if user ID changed
             user_id = camera.last_recognized_id or 0
             if user_id != last_user_id:
                 last_user_id = user_id
                 yield f"event: user\ndata: {user_id}\n\n"
-            time.sleep(0.2)  # prevent CPU overuse
+            time.sleep(0.2) 
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
 
@@ -258,7 +252,6 @@ def serve_user_image(filename):
 @app.route('/manage_users')
 @admin_required
 def manage_users():
-    # Lấy dữ liệu từ request
     name_filter = request.args.get('name', '').strip()
     role_filter = request.args.get('role', '')
     start_date = request.args.get('start_date', '')

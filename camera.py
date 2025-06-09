@@ -9,12 +9,13 @@ from face_utils import recognize_and_log, get_user_info, increased_crop
 from face_recognize import FaceRecognizerONNX
 
 antispoof_threshold = 0.75
+max_face = 1
 
 class Camera:
     def __init__(self, detector='haar'):
-        self.video = cv2.VideoCapture(1)
+        self.video = cv2.VideoCapture(0)
         self.face_detector = FaceDetector(detector)
-        self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox1.5_sz128_128_best.onnx')
+        self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox2_sz128_128_best.onnx')
 
         self.recognizer = FaceRecognizerONNX()
         self.last_recognized_id = None  
@@ -39,7 +40,6 @@ class Camera:
     
     def process_frame(self, frame):
         try:
-            # Đo thời gian xử lý toàn bộ
             start_total = time.time()
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -61,12 +61,12 @@ class Camera:
                             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 return frame  # return sớm nếu không có bbox
 
-            for bbox in bboxes:
+            for bbox in bboxes[:max_face]:
                 x1, y1, x2, y2 = bbox
 
                 # Đo thời gian xử lý anti-spoof
                 start_antispoof = time.time()
-                face_crop = increased_crop(rgb_frame, bbox, 1.5)
+                face_crop = increased_crop(rgb_frame, bbox, 2)
                 score = self.anti_spoof.predict(face_crop)
                 antispoof_time = time.time() - start_antispoof
 

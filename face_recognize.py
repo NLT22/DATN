@@ -5,7 +5,7 @@ from face_detector import FaceDetector
 import onnxruntime as ort
 
 class FaceRecognizerONNX:
-    def __init__(self, model_path='./models/edgeface_s_gamma_05.onnx', input_size=(112, 112)):
+    def __init__(self, model_path='./models/edgeface_xs_gamma_06.onnx', input_size=(112, 112)):
         self.input_size = input_size
         self.session = ort.InferenceSession(model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
         self.input_name = self.session.get_inputs()[0].name
