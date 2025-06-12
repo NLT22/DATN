@@ -1,3 +1,5 @@
+# face_utils.py
+
 import faiss
 import numpy as np
 import pickle
@@ -15,9 +17,6 @@ MIN_LOG_INTERVAL = 10
 FAISS_INDEX_PATH = "faiss_index/index.bin"
 ID_MAPPING_PATH = "embeddings/id_to_user.pkl"
 USER_IMAGE_DIR = 'user_images'
-
-# Ngưỡng Cosine similarity (thay vì Euclidean distance)
-cosine_threshold = 0.2  # Giá trị từ 0 đến 1, càng gần 1 càng tương đồng
 
 def create_faiss_index(dim=512):
     # Sử dụng IndexFlatIP cho Cosine similarity (Inner Product)
@@ -55,7 +54,7 @@ def get_user_info(user_id):
     else:
         return "Unknown", ""
 
-def recognize_and_log(embedding):
+def recognize_and_log(embedding, cosine_threshold=0.6):
     index = load_index()
     id_map = load_id_mapping()
     
