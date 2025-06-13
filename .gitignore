@@ -1,8 +1,8 @@
 __pycache__/
-user_images/
-uploads/
-database/
-embeddings/
-faiss_index/
+# user_images/
+# uploads/
+# database/
+# embeddings/
+# faiss_index/
 venv310/
 test_perform.ipynb

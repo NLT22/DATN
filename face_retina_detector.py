@@ -7,7 +7,7 @@ from insightface.app import FaceAnalysis
 
 class RetinaFaceDetector:
     def __init__(self, device='cpu'):
-        from insightface.app import FaceAnalysis  # <== import nội bộ để tránh ảnh hưởng đến phần khác
+        from insightface.app import FaceAnalysis 
         self.app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'] if device == 'cpu' else ['CUDAExecutionProvider'])
         self.app.prepare(ctx_id=0, det_size=(640, 640))
         

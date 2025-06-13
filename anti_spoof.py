@@ -3,12 +3,13 @@ import onnxruntime as ort
 import numpy as np
 
 class AntiSpoof:
-    def __init__(self, model_path):
+    def __init__(self, model_path, input_size=(128, 128)):
         self.session = ort.InferenceSession(model_path)
         self.input_name = self.session.get_inputs()[0].name
+        self.input_size = input_size  
 
     def preprocess(self, img):
-        img = cv2.resize(img, (128, 128))
+        img = cv2.resize(img, self.input_size)  
         img = img.transpose(2, 0, 1).astype(np.float32) / 255.0
         img = np.expand_dims(img, axis=0)
         return img

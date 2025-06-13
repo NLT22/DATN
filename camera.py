@@ -11,20 +11,22 @@ from face_utils import recognize_and_log, get_user_info, increased_crop
 from face_recognize import FaceRecognizerONNX
 
 antispoof_threshold = 0.9
-cosine_threshold = 0.2
-recognition_hold_time = 0.5  # thời gian phải giữ REAL liên tục mới mở cửa
+cosine_threshold = 0.37
+recognition_hold_time = 0.5  
 max_face = 1
+INPUT_SIZE = 128
+scale_up = 1.5
 
 class Camera:
     def __init__(self, detector='haar'):
         self.video = cv2.VideoCapture(0)
         self.face_detector = FaceDetector(detector)
-        self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox2_sz128_128_best.onnx')
+        self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox1.5_sz128_128_best.onnx', input_size=(INPUT_SIZE, INPUT_SIZE))
         self.recognizer = FaceRecognizerONNX()
         self.last_recognized_id = None
         self.last_unlock_time = 0
         self.unlock_delay = 5
-        self.real_start_time = None  # Thời điểm bắt đầu phát hiện REAL
+        self.real_start_time = None  
 
     def gen_frames(self):
         while True:
@@ -64,7 +66,7 @@ class Camera:
                 x1, y1, x2, y2 = bbox
 
                 start_antispoof = time.time()
-                face_crop = increased_crop(rgb_frame, bbox, 2)
+                face_crop = increased_crop(rgb_frame, bbox, scale_up)
                 score = self.anti_spoof.predict(face_crop)
                 antispoof_time = time.time() - start_antispoof
 

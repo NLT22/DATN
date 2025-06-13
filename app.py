@@ -24,7 +24,6 @@ import bcrypt
 # from werkzeug.datastructures import MultiDict
 
 
-
 app = Flask(__name__)
 camera = Camera()
 app.secret_key = '12345678' 
