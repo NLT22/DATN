@@ -11,9 +11,6 @@ from datetime import datetime, timedelta
 # Lưu thời điểm nhận diện cuối cùng theo user_id
 last_logged_times = {}
 
-# Khoảng thời gian tối thiểu giữa 2 lần log liên tiếp cho cùng user (giây)
-MIN_LOG_INTERVAL = 10  
-
 FAISS_INDEX_PATH = "faiss_index/index.bin"
 ID_MAPPING_PATH = "embeddings/id_to_user.pkl"
 USER_IMAGE_DIR = 'user_images'
@@ -54,7 +51,7 @@ def get_user_info(user_id):
     else:
         return "Unknown", ""
 
-def recognize_and_log(embedding, cosine_threshold=0.6):
+def recognize_and_log(embedding, cosine_threshold=0.6, MIN_LOG_INTERVAL=10):
     index = load_index()
     id_map = load_id_mapping()
     

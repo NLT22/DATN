@@ -11,14 +11,15 @@ from face_utils import recognize_and_log, get_user_info, increased_crop
 from face_recognize import FaceRecognizerONNX
 
 antispoof_threshold = 0.9
-cosine_threshold = 0.37
+cosine_threshold = 0.3
 recognition_hold_time = 0.5  
 max_face = 1
+MIN_LOG_INTERVAL = 30
 INPUT_SIZE = 128
 scale_up = 1.5
 
 class Camera:
-    def __init__(self, detector='haar'):
+    def __init__(self, detector='yunet'):
         self.video = cv2.VideoCapture(0)
         self.face_detector = FaceDetector(detector)
         self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox1.5_sz128_128_best.onnx', input_size=(INPUT_SIZE, INPUT_SIZE))
@@ -27,6 +28,7 @@ class Camera:
         self.last_unlock_time = 0
         self.unlock_delay = 5
         self.real_start_time = None  
+        self.latest_frame = None
 
     def gen_frames(self):
         while True:
@@ -38,9 +40,16 @@ class Camera:
                 frame = cv2.flip(frame, 1)
                 annotated_frame = self.process_frame(frame)
                 ret, buffer = cv2.imencode('.jpg', annotated_frame)
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+                if ret:
+                    self.latest_frame = buffer.tobytes()
+
+                # Không yield ở đây nếu bạn không cần stream liên tục
+                time.sleep(0.05)
+
+                # frame_bytes = buffer.tobytes()
+                # yield (b'--frame\r\n'
+                #        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
     def process_frame(self, frame):
         try:
@@ -91,7 +100,7 @@ class Camera:
                     embedding = self.recognizer.get_embedding(face_roi)
 
                     if embedding is not None:
-                        user_id, result, image_path = recognize_and_log(embedding, cosine_threshold=cosine_threshold)
+                        user_id, result, image_path = recognize_and_log(embedding, cosine_threshold=cosine_threshold, MIN_LOG_INTERVAL=MIN_LOG_INTERVAL)
                         recognize_time = time.time() - start_recognize
 
                         if user_id and user_id != 0:

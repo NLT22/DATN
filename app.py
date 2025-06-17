@@ -17,7 +17,7 @@ from face_recognize import FaceRecognizerONNX
 from face_detector import FaceDetector
 from werkzeug.utils import secure_filename
 from door_control import get_door_status
-from door_control import get_door_event_queue
+from door_control import *
 import bcrypt
 
 
@@ -216,31 +216,52 @@ def recognized_identity_image(user_id):
 def door_status():
     return get_door_status()
 
+# @app.route('/video_feed')
+# def video_feed():
+#     return Response(camera.gen_frames(),
+#                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
 @app.route('/video_feed')
 def video_feed():
-    return Response(camera.gen_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    def generate():
+        while True:
+            if camera.latest_frame:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + camera.latest_frame + b'\r\n')
+            # time.sleep(0.1)
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/sse/updates')
 def sse_updates():
     def event_stream():
-        last_user_id = None
-        q = get_door_event_queue()
+        user_last_id = None
+        q = register_client_queue()  # hàng đợi riêng
 
-        while True:
-            try:
-                door = q.get(timeout=0.5)
-                yield f"event: door\ndata: {door}\n\n"
-            except:
-                pass  
+        # Gửi trạng thái ban đầu khi client mới kết nối
+        yield f"event: door\ndata: {get_door_status()}\n\n"
+        current_user_id = camera.last_recognized_id or 0
+        yield f"event: user\ndata: {current_user_id}\n\n"
+        user_last_id = current_user_id
 
-            user_id = camera.last_recognized_id or 0
-            if user_id != last_user_id:
-                last_user_id = user_id
-                yield f"event: user\ndata: {user_id}\n\n"
-            time.sleep(0.2) 
+        try:
+            while True:
+                try:
+                    door = q.get(timeout=0.5)
+                    yield f"event: door\ndata: {door}\n\n"
+                except:
+                    pass
+
+                user_id = camera.last_recognized_id or 0
+                if user_id != user_last_id:
+                    user_last_id = user_id
+                    yield f"event: user\ndata: {user_id}\n\n"
+
+                time.sleep(0.2)
+        finally:
+            unregister_client_queue(q)
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
+
 
 @app.route('/user_images/<path:filename>')
 def serve_user_image(filename):
@@ -495,6 +516,15 @@ def add_user():
     return render_template('add_user.html')
 
 
+import threading
+
+def background_camera_loop():
+    for _ in camera.gen_frames():
+        pass
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
-    # app.run(host='0.0.0.0', port=5000, debug=False)
+    t = threading.Thread(target=background_camera_loop, daemon=True)
+    t.start()
+    # app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)

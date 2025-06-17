@@ -2,20 +2,31 @@ from queue import Queue
 import threading
 
 door_status = "CLOSED"
-door_event_queue = Queue()
+client_queues = []  # danh sách chứa các hàng đợi của từng client
 auto_close_timer = None
+door_lock = threading.Lock()
 
 def set_door_status(status):
     global door_status
-    if status != door_status:
-        door_status = status
-        door_event_queue.put(status)  # báo SSE cập nhật
+    with door_lock:
+        if status != door_status:
+            door_status = status
+            for q in client_queues:
+                q.put(status)  # phát cho tất cả hàng đợi của client
+            print(f"[INFO] Door set to: {status}")
 
 def get_door_status():
-    return door_status
+    with door_lock:
+        return door_status
 
-def get_door_event_queue():
-    return door_event_queue
+def register_client_queue():
+    q = Queue()
+    client_queues.append(q)
+    return q
+
+def unregister_client_queue(q):
+    if q in client_queues:
+        client_queues.remove(q)
 
 def auto_close_door(delay=1.0):
     global auto_close_timer
