@@ -1,10 +1,10 @@
-# camera.py
-
 import cv2
 from face_detector import FaceDetector
 from anti_spoof import AntiSpoof
 import numpy as np
 import time
+import csv
+import os
 
 from door_control import set_door_status, auto_close_door, get_door_status
 from face_utils import recognize_and_log, get_user_info, increased_crop
@@ -19,7 +19,7 @@ INPUT_SIZE = 128
 scale_up = 1.5
 
 class Camera:
-    def __init__(self, detector='yunet'):
+    def __init__(self, detector='haar'):
         self.video = cv2.VideoCapture(0)
         self.face_detector = FaceDetector(detector)
         self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox1.5_sz128_128_best.onnx', input_size=(INPUT_SIZE, INPUT_SIZE))
@@ -29,6 +29,26 @@ class Camera:
         self.unlock_delay = 5
         self.real_start_time = None  
         self.latest_frame = None
+
+        # Tạo file log nếu chưa có, KHÔNG có trường fps
+        self.log_file = 'log_metrics.csv'
+        if not os.path.exists(self.log_file):
+            with open(self.log_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['timestamp', 'total_time', 'detect_time', 'antispoof_time', 'recognize_time', 'score', 'label'])
+
+    def log_metrics(self, total_time, detect_time, antispoof_time, recognize_time, score, label):
+        with open(self.log_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                time.time(),
+                total_time,
+                detect_time,
+                antispoof_time,
+                recognize_time,
+                score,
+                label
+            ])
 
     def gen_frames(self):
         while True:
@@ -44,17 +64,11 @@ class Camera:
                 if ret:
                     self.latest_frame = buffer.tobytes()
 
-                # Không yield ở đây nếu bạn không cần stream liên tục
                 time.sleep(0.05)
 
-                # frame_bytes = buffer.tobytes()
-                # yield (b'--frame\r\n'
-                #        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
     def process_frame(self, frame):
+        start_total = time.time()
         try:
-            start_total = time.time()
-
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             start_detect = time.time()
             bboxes = self.face_detector.detect_faces(rgb_frame)
@@ -69,6 +83,14 @@ class Camera:
                 total_time = time.time() - start_total
                 cv2.putText(frame, f"Total: {total_time*1000:.2f}ms (No face)",
                             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                self.log_metrics(
+                    total_time,
+                    detect_time,
+                    None,
+                    None,
+                    None,
+                    'NOFACE'
+                )
                 return frame
 
             for bbox in bboxes[:max_face]:
@@ -87,7 +109,8 @@ class Camera:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
                 embedding = None
-                recognize_time = 0
+                recognize_time = None
+                elapsed = 0
 
                 if label == 'REAL':
                     now = time.time()
@@ -110,14 +133,12 @@ class Camera:
                                 self.last_recognized_id = user_id
                                 set_door_status("OPEN")
                                 auto_close_door()
-
                             user_name, _ = get_user_info(user_id)
                             text = f'{user_name} ({score:.2f})'
                         else:
                             self.last_recognized_id = 0
                             text = 'Unknown'
                             print("\u274c Unknown person — door stays closed")
-
                         cv2.putText(frame, text, (x1, y2 + 25),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
                     else:
@@ -139,6 +160,15 @@ class Camera:
                     cv2.putText(frame, f"Hold: {elapsed:.2f}/{recognition_hold_time}s", 
                                 (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
+                self.log_metrics(
+                    total_time,
+                    detect_time,
+                    antispoof_time,
+                    recognize_time,
+                    score,
+                    label
+                )
+
             return frame
 
         except Exception as e:
@@ -146,4 +176,12 @@ class Camera:
             total_time = time.time() - start_total
             cv2.putText(frame, f"Total: {total_time*1000:.2f}ms (Error)", 
                         (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            self.log_metrics(
+                total_time,
+                None,
+                None,
+                None,
+                None,
+                'ERROR'
+            )
             return frame
