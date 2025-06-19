@@ -44,26 +44,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
 
-        conn = sqlite3.connect("database/face_lock.db")
-        c = conn.cursor()
-        c.execute("SELECT password FROM users WHERE username = ? AND role = 'admin'", (username,))
-        result = c.fetchone()
-        conn.close()
-
-        if result and bcrypt.checkpw(password.encode('utf-8'), result[0]):
-            session['admin_logged_in'] = True
-            session['admin_username'] = username
-            return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error='Sai tên đăng nhập hoặc mật khẩu.')
-
-    return render_template('login.html')
 
 @app.route('/change_password', methods=['GET', 'POST'])
 @admin_required
@@ -93,6 +74,26 @@ def change_password():
 
     return render_template('change_password.html')
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        conn = sqlite3.connect("database/face_lock.db")
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username = ? AND role = 'admin'", (username,))
+        result = c.fetchone()
+        conn.close()
+
+        if result and bcrypt.checkpw(password.encode('utf-8'), result[0]):
+            session['admin_logged_in'] = True
+            session['admin_username'] = username
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='Sai tên đăng nhập hoặc mật khẩu.')
+
+    return render_template('login.html')
 
 @app.route('/logout')
 def logout():
@@ -212,15 +213,6 @@ def recognized_identity_image(user_id):
             return send_from_directory(user_folder, images[0])
     return send_from_directory(USER_IMAGE_DIR, 'Unknown.png')
 
-@app.route('/door_status')
-def door_status():
-    return get_door_status()
-
-# @app.route('/video_feed')
-# def video_feed():
-#     return Response(camera.gen_frames(),
-#                     mimetype='multipart/x-mixed-replace; boundary=frame')
-
 @app.route('/video_feed')
 def video_feed():
     def generate():
@@ -261,11 +253,6 @@ def sse_updates():
             unregister_client_queue(q)
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
-
-
-@app.route('/user_images/<path:filename>')
-def serve_user_image(filename):
-    return send_from_directory('user_images', filename)
 
 
 @app.route('/manage_users')

@@ -1,0 +1,83 @@
+flowchart TD
+    Start["Khởi động ứng dụng"]
+    Init["Khởi tạo Camera, model, thư mục"]
+    Middleware["Kiểm tra quyền admin (session)"]
+    Home["Trang chủ / (index.html)"]
+
+    Start --> Init --> Middleware --> Home
+
+    Home --> LoginPage["Trang Đăng nhập"]
+    Home --> UserManagement["Trang Quản lý người dùng"]
+    Home --> Monitor["Trang Giám sát truy cập"]
+    Home --> Camera["Camera, danh tính nhận diện và trạng thái cửa"]
+
+
+
+
+
+flowchart TD
+    Home["Trang chủ"] --> Login[/"GET/POST /login"/]
+    Login -->|Thông tin đúng| SessionOK["Lưu trạng thái đăng nhập"]
+    Login -->|Sai| LoginFail[" Hiển thị lỗi"]
+    SessionOK --> HomeBack["Quay lại Trang chủ"]
+
+    Home --> Logout[/"GET /logout"/]
+    Logout --> ClearSession[" Xóa session"]
+    ClearSession --> Login
+
+
+
+
+
+
+
+flowchart TD
+    Home["Trang chủ"] --> ManageUsers[/"GET /manage_users"/]
+    ManageUsers --> AddUser[/"GET/POST /add_user"/]
+    ManageUsers --> EditUser[/"GET/POST /edit_user/<id>"/]
+    ManageUsers --> DeleteUser[/"GET /delete_user/<id>"/]
+    ManageUsers --> ChangePass[/"GET/POST /change_password"/]
+
+    AddUser --> DetectFace["Tải ảnh, phát hiện & căn chỉnh khuôn mặt"]
+    DetectFace --> ExtractEmbed["Trích xuất embedding"]
+    ExtractEmbed --> SaveUser["Ghi vào database + ảnh"]
+
+    EditUser --> ValidateUsername["Kiểm tra trùng thông tin"]
+    ValidateUsername --> UpdateUser["Cập nhật thông tin user"]
+
+    DeleteUser --> DeleteImages["Xóa thư mục ảnh"]
+    DeleteImages --> DeleteFAISS["Xóa embedding trong FAISS"]
+    DeleteFAISS --> DeleteDB["Xóa dữ liệu trong SQLite"]
+
+    ChangePass --> CheckCurrent["Xác thực mật khẩu hiện tại"]
+    CheckCurrent --> HashNew["Băm mật khẩu mới"]
+    HashNew --> UpdatePass["Cập nhật mật khẩu"]
+
+
+
+
+flowchart TD
+    Home["Trang chủ"] --> TrafficMonitor[/"GET /traffic_monitor"/]
+    TrafficMonitor --> NhậpBộLọc["Nhận các bộ lọc: tên, vai trò, ngày"]
+    NhậpBộLọc --> TruyVấn["Thực thi truy vấn database"]
+    TruyVấn --> PhânTrang["Phân trang kết quả"]
+    TruyVấn --> ThốngKê["Tính biểu đồ theo ngày/tuần/tháng"]
+    PhânTrang --> RenderPage["Hiển thị trang traffic.html"]
+
+
+
+flowchart TD
+    Home["Trang chủ"] --> VideoFeed[/"GET /video_feed"/]
+    Home --> SSE[/"GET /sse/updates"/]
+
+    %% Phát video trực tiếp
+    VideoFeed --> StreamFrames["Phát luồng MJPEG từ Camera (video stream)"]
+
+    %% SSE đẩy dữ liệu real-time
+    SSE --> StartStream["Cập nhật trạng thái cửa và ảnh khuôn mặt danh tính nhận diện được"]
+    StartStream --> PushUser["Gửi user_id mỗi khi nhận diện mới"]
+
+    %% Lấy ảnh nhận diện mới nhất
+    PushUser --> RecognizedImage[/"GET /recognized_identity_image/<id>"/]
+    RecognizedImage --> LoadImage["Tải ảnh của người dùng nhận diện được từ thư mục user_images"]
+

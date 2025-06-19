@@ -2,7 +2,7 @@ from queue import Queue
 import threading
 
 door_status = "CLOSED"
-client_queues = []  # danh sách chứa các hàng đợi của từng client
+client_queues = []  
 auto_close_timer = None
 door_lock = threading.Lock()
 
@@ -12,7 +12,7 @@ def set_door_status(status):
         if status != door_status:
             door_status = status
             for q in client_queues:
-                q.put(status)  # phát cho tất cả hàng đợi của client
+                q.put(status)  
             print(f"[INFO] Door set to: {status}")
 
 def get_door_status():
