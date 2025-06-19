@@ -19,7 +19,7 @@ INPUT_SIZE = 128
 scale_up = 1.5
 
 class Camera:
-    def __init__(self, detector='haar'):
+    def __init__(self, detector='yunet'):
         self.video = cv2.VideoCapture(0)
         self.face_detector = FaceDetector(detector)
         self.anti_spoof = AntiSpoof('./models/AntiSpoofing_cls2_bbox1.5_sz128_128_best.onnx', input_size=(INPUT_SIZE, INPUT_SIZE))
@@ -30,7 +30,9 @@ class Camera:
         self.real_start_time = None  
         self.latest_frame = None
 
-        # Tạo file log nếu chưa có, KHÔNG có trường fps
+        self.show_metrics = False        
+        self.enable_logging = True      
+        
         self.log_file = 'log_metrics.csv'
         if not os.path.exists(self.log_file):
             with open(self.log_file, 'w', newline='') as f:
@@ -38,6 +40,8 @@ class Camera:
                 writer.writerow(['timestamp', 'total_time', 'detect_time', 'antispoof_time', 'recognize_time', 'score', 'label'])
 
     def log_metrics(self, total_time, detect_time, antispoof_time, recognize_time, score, label):
+        if not self.enable_logging:
+            return
         with open(self.log_file, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
@@ -148,17 +152,18 @@ class Camera:
                     self.real_start_time = None
 
                 total_time = time.time() - start_total
-                cv2.putText(frame, f"Total: {total_time*1000:.2f}ms", 
-                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                cv2.putText(frame, f"Detect: {detect_time*1000:.2f}ms", 
-                            (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                cv2.putText(frame, f"AntiSpoof: {antispoof_time*1000:.2f}ms", 
-                            (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                if label == 'REAL' and embedding is not None:
-                    cv2.putText(frame, f"Recognize: {recognize_time*1000:.2f}ms", 
-                                (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                    cv2.putText(frame, f"Hold: {elapsed:.2f}/{recognition_hold_time}s", 
-                                (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                if self.show_metrics:
+                    cv2.putText(frame, f"Total: {total_time*1000:.2f}ms", 
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                    cv2.putText(frame, f"Detect: {detect_time*1000:.2f}ms", 
+                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                    cv2.putText(frame, f"AntiSpoof: {antispoof_time*1000:.2f}ms", 
+                                (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                    if label == 'REAL' and embedding is not None:
+                        cv2.putText(frame, f"Recognize: {recognize_time*1000:.2f}ms", 
+                                    (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                        cv2.putText(frame, f"Hold: {elapsed:.2f}/{recognition_hold_time}s", 
+                                    (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
                 self.log_metrics(
                     total_time,
