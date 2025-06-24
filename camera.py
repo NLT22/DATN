@@ -11,7 +11,7 @@ from face_utils import recognize_and_log, get_user_info, increased_crop
 from face_recognize import FaceRecognizerONNX
 
 antispoof_threshold = 0.9
-cosine_threshold = 0.3
+cosine_threshold = 0.4
 recognition_hold_time = 0.5  
 max_face = 1
 MIN_LOG_INTERVAL = 30

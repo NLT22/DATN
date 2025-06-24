@@ -11,7 +11,7 @@ class FaceDetector:
             self.detector = cv2.FaceDetectorYN.create(
                 model='models/face_detection_yunet_2023mar.onnx',
                 config='',
-                input_size=(320, 320))
+                input_size=(300, 300))
         else:
             raise ValueError("Unsupported detector type")
 

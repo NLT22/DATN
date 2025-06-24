@@ -5,5 +5,4 @@ __pycache__/
 # embeddings/
 # faiss_index/
 venv310/
-test_perform.ipynb
 *.csv
