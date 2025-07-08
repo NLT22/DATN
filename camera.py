@@ -11,7 +11,7 @@ from face_utils import recognize_and_log, get_user_info, increased_crop
 from face_recognize import FaceRecognizerONNX
 
 antispoof_threshold = 0.9
-cosine_threshold = 0.4
+cosine_threshold = 0.3
 recognition_hold_time = 0.5  
 max_face = 1
 MIN_LOG_INTERVAL = 30
@@ -68,7 +68,7 @@ class Camera:
                 if ret:
                     self.latest_frame = buffer.tobytes()
 
-                time.sleep(0.05)
+                # time.sleep(0.05)
 
     def process_frame(self, frame):
         start_total = time.time()

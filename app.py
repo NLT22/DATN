@@ -9,24 +9,28 @@ import numpy as np
 import sqlite3
 from collections import defaultdict
 from datetime import datetime
-import calendar
 import math
 import os
 import cv2
 from face_recognize import FaceRecognizerONNX
-from face_detector import FaceDetector
 from werkzeug.utils import secure_filename
 from door_control import get_door_status
 from door_control import *
+from db_utils import init_db
+import threading
 import bcrypt
 
 
-# from werkzeug.datastructures import MultiDict
+# import secrets
+# print(secrets.token_hex(16)) =>> Tạo secretkey cho flask app
 
+if not os.path.exists("database/face_lock.db"):
+    print("Database is not found, create database function called")
+    init_db()
 
 app = Flask(__name__)
 camera = Camera()
-app.secret_key = '12345678' 
+app.secret_key = '1a628b3812470c33f41f02d06c3c7689' 
 
 
 UPLOAD_FOLDER = 'uploads'
@@ -43,8 +47,6 @@ def admin_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
-
-
 
 @app.route('/change_password', methods=['GET', 'POST'])
 @admin_required
@@ -254,6 +256,10 @@ def sse_updates():
 
     return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
 
+
+@app.route('/user_images/<path:filename>')
+def serve_user_image(filename):
+    return send_from_directory('user_images', filename)
 
 @app.route('/manage_users')
 @admin_required
@@ -501,9 +507,6 @@ def add_user():
         return render_template('add_user.html', success=f"✅ Thêm người dùng '{name}' ({role}) thành công!")
 
     return render_template('add_user.html')
-
-
-import threading
 
 def background_camera_loop():
     for _ in camera.gen_frames():

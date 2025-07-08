@@ -2,11 +2,8 @@
 
 import sqlite3
 import os
-
-# db_utils.py
-
-import sqlite3
-import os
+import random
+from datetime import datetime, timedelta
 
 def init_db(db_path="database/face_lock.db"):
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -61,11 +58,6 @@ def init_db(db_path="database/face_lock.db"):
 
 
 # init_db()
-
-
-import sqlite3
-import random
-from datetime import datetime, timedelta
 
 def generate_dummy_logs(db_path="database/face_lock.db", num_logs=50):
     conn = sqlite3.connect(db_path)
