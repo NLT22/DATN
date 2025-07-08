@@ -402,6 +402,7 @@ def edit_user(user_id):
         name = request.form['name']
         role = request.form['role']
         username = request.form.get('username') if role == 'admin' else None
+        files = request.files.getlist('face_images')
 
         # Kiểm tra nếu là admin thì phải có username
         if role == 'admin' and not username:
@@ -419,6 +420,77 @@ def edit_user(user_id):
                 flash('Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.', 'danger')
                 return redirect(request.url)
 
+        # Xử lý cập nhật ảnh và embedding nếu có ảnh mới
+        embeddings = []
+        saved_image_paths = []
+        from face_retina_detector import RetinaFaceDetector
+        detector = RetinaFaceDetector(device='cpu')
+        user_folder = os.path.join('user_images', f'user_{user_id}')
+        os.makedirs(user_folder, exist_ok=True)
+        has_new_images = any(file and file.filename for file in files)
+        if has_new_images:
+            # Xóa ảnh cũ
+            for f in os.listdir(user_folder):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    os.remove(os.path.join(user_folder, f))
+            # Lưu và xử lý ảnh mới
+            for idx, file in enumerate(files):
+                if file and file.filename:
+                    img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+                    aligned = detector.detect_and_align(img)
+                    if aligned is not None:
+                        filename = f'face_{idx}.jpg'
+                        img_path = os.path.join(user_folder, filename)
+                        cv2.imwrite(img_path, aligned)
+                        embedding = recognizer.get_embedding(aligned)
+                        if embedding is not None:
+                            embedding = embedding / np.linalg.norm(embedding)
+                            embeddings.append(embedding)
+                            saved_image_paths.append(img_path)
+                        else:
+                            print(f"[WARN] Không lấy được embedding cho ảnh: {filename}")
+                    else:
+                        print(f"[WARN] Không detect/align được ảnh: {file.filename}")
+            if embeddings:
+                mean_embedding = np.mean(embeddings, axis=0)
+                mean_embedding = mean_embedding / np.linalg.norm(mean_embedding)
+                # Cập nhật FAISS index và id_map
+                index = load_index()
+                id_map = load_id_mapping()
+                # Xóa embedding cũ của user này
+                ids_to_remove = [i for i, uid in id_map.items() if uid == user_id]
+                if ids_to_remove:
+                    mask = np.ones(index.ntotal, dtype=bool)
+                    mask[ids_to_remove] = False
+                    new_vectors = index.reconstruct_n(0, index.ntotal)
+                    new_vectors = new_vectors[mask]
+                    dim = new_vectors.shape[1]
+                    new_index = faiss.IndexFlatIP(dim)
+                    if len(new_vectors) > 0:
+                        new_index.add(new_vectors.astype('float32'))
+                    new_id_map = {}
+                    j = 0
+                    for i in range(index.ntotal):
+                        if i in ids_to_remove:
+                            continue
+                        new_id_map[j] = id_map[i]
+                        j += 1
+                    # Thêm embedding mới
+                    new_index.add(mean_embedding.reshape(1, -1).astype('float32'))
+                    new_id_map[len(new_id_map)] = user_id
+                    save_index(new_index)
+                    save_id_mapping(new_id_map)
+                else:
+                    # Nếu user chưa có embedding, chỉ cần thêm mới
+                    index.add(mean_embedding.reshape(1, -1).astype('float32'))
+                    id_map[index.ntotal-1] = user_id
+                    save_index(index)
+                    save_id_mapping(id_map)
+                # Cập nhật bảng user_images (nếu có)
+                c.execute("DELETE FROM user_images WHERE user_id=?", (user_id,))
+                for img_path in saved_image_paths:
+                    c.execute("INSERT INTO user_images (user_id, folder_path) VALUES (?, ?)", (user_id, user_folder))
+        # Cập nhật thông tin user
         c.execute("""
             UPDATE users SET name=?, role=?, username=? WHERE id=?
         """, (name, role, username, user_id))

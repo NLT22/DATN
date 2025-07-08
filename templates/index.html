@@ -10,7 +10,7 @@
       height: 250px;
       width: 250px;
       object-fit: contain;
-      border: 2px solid #198754; /* green border */
+      border: 2px solid #3e3f3f;
       border-radius: 0.5rem;
     }
   </style>
@@ -18,7 +18,7 @@
 <body class="bg-light">
   <div class="container py-5">
     <div class="d-flex justify-content-between align-items-center mb-5">
-      <h1>🔐 Hệ thống khóa cửa thông minh</h1>
+      <h1>Hệ thống khóa cửa thông minh</h1>
       {% if session.admin_logged_in %}
         <div class="btn-group">
           <a href="{{ url_for('change_password') }}" class="btn btn-outline-primary">Đổi mật khẩu</a>
@@ -34,7 +34,7 @@
       <div class="col-lg-9">
         <div class="card shadow">
           <div class="card-header bg-dark text-white">
-            📹 Camera an ninh
+            Camera an ninh
           </div>
           <div class="card-body text-center">
             <img src="{{ url_for('video_feed') }}" alt="Video Stream" class="img-fluid rounded border border-dark">
@@ -47,7 +47,7 @@
         <!-- Identity -->
         <div class="card shadow">
           <div class="card-header bg-primary text-white">
-            🚹 Danh tính nhận diện được
+            Danh tính nhận diện được
           </div>
           <div class="card-body text-center">
             <img id="recognized-image" src="/recognized_identity_image/0" alt="Recognized Face">
